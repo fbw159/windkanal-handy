@@ -1,0 +1,1004 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b1016">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Taschen-Windkanal</title>
+<meta name="description" content="Windkanal fürs Handy: Strömung um Autos, Tiere, Flugzeuge und eigene Formen, gerechnet auf der Grafikkarte des Handys.">
+<style>
+:root {
+  --panel: #121a22; --panel-2: #19232d; --line: #273441; --text: #e6ebf0; --muted: #8e9cab;
+  --wind: #f4b740; --wind-ink: #2a1d05; --stage: #0b1016;
+  --font: Bahnschrift, "DIN Alternate", "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: flex; flex-direction: column; background: var(--stage); color: var(--text);
+  font: 400 15px/1.35 var(--font); font-variant-numeric: tabular-nums; overflow: hidden;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  touch-action: manipulation;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--wind); outline-offset: 2px; }
+
+#top { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; flex: none; }
+.logo { width: 28px; height: 28px; color: #c9d1da; flex: none; }
+#top h1 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: .01em; flex: 1; white-space: nowrap; }
+.legend { color: var(--muted); font-size: 13px; white-space: nowrap; }
+@media (max-width: 430px) { .legend { display: none; } }
+.iconbtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); display: grid; place-items: center; font-weight: 600; padding: 0; }
+#btn3d { font-size: 12px; color: var(--wind); border-color: var(--wind); }
+
+#stage { position: relative; flex: 1 1 auto; min-height: 150px; max-height: calc(100vw / 1.05); background: #0d141b; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#hud { position: absolute; left: 10px; top: 8px; right: 10px; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+.hudrow { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hudrow .lbl { color: #c9d1da; font-size: 13px; }
+.hudrow b { font-size: 30px; font-weight: 600; line-height: 1; }
+.hudrow b.small { font-size: 18px; }
+.hudrow.sub { font-size: 12.5px; color: #c9d1da; margin-top: 2px; justify-content: space-between; }
+#gauge { height: 5px; width: 180px; max-width: 48%; background: rgba(255,255,255,.14); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+#gauge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #4fc3f7, var(--wind) 60%, #ef6c57); transition: width .4s; }
+#drawbar { position: absolute; left: 10px; right: 10px; top: 8px; display: flex; gap: 8px; align-items: center; background: rgba(18,26,34,.9); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 13px; }
+#drawbar span { flex: 1; color: #c9d1da; }
+#toast { position: absolute; left: 50%; bottom: 14px; transform: translate(-50%, 20px); background: rgba(18,26,34,.95); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 13px; opacity: 0; transition: .25s; pointer-events: none; max-width: 90%; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+#gallery { flex: 0 1 auto; display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 64px); grid-auto-columns: max-content; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 8px 10px 6px; scrollbar-width: none; -webkit-overflow-scrolling: touch; align-content: start; }
+@media (min-height: 760px) and (orientation: portrait) { #gallery { grid-template-rows: repeat(3, 64px); } }
+#gallery::-webkit-scrollbar { display: none; }
+#gallery .grp { grid-row: 1 / -1; writing-mode: vertical-rl; transform: rotate(180deg); color: var(--muted); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; align-self: center; justify-self: center; width: 16px; }
+#gallery button { width: 84px; height: 64px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px 4px 3px; }
+#gallery button svg { width: 70px; height: 36px; fill: #c9d1da; }
+#gallery button span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+#gallery button[aria-pressed="true"] { border-color: var(--wind); background: #1d2838; }
+#gallery button[aria-pressed="true"] svg { fill: var(--wind); }
+#gallery button[aria-pressed="true"] span { color: var(--text); }
+#gallery button.malen svg { width: 26px; height: 26px; margin: 5px 0 3px; }
+
+#ctl { flex: none; padding: 4px 12px 10px; display: grid; gap: 6px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row label, .row > span:first-child { width: 64px; color: var(--muted); font-size: 13px; flex: none; }
+.row .val { width: 62px; text-align: right; font-size: 14px; flex: none; }
+input[type=range] { flex: 1; accent-color: var(--wind); height: 40px; margin: 0; }
+.btns { display: flex; gap: 8px; }
+.btns button { height: 44px; min-width: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 16px; font-weight: 600; padding: 0 14px; }
+.btns button.wide { flex: 1; }
+button.primary { background: var(--wind); color: var(--wind-ink); border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+button.ghost { background: transparent; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: 0; background: var(--panel-2); padding: 0 16px; height: 44px; }
+.seg button[aria-pressed="true"] { background: var(--wind); color: var(--wind-ink); font-weight: 600; }
+
+dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 14px; max-width: min(92vw, 520px); padding: 18px 18px 14px; }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { margin: 0 0 8px; font-size: 18px; outline: none; }
+dialog { max-height: 90vh; overflow: auto; }
+dialog p { margin: 8px 0; font-size: 14px; color: #c9d1da; }
+dialog p.muted { color: var(--muted); font-size: 13px; }
+dialog a { color: var(--wind); }
+dialog .row { margin: 10px 0; }
+dialog #helpClose { margin-top: 8px; width: 100%; height: 44px; }
+
+#fatal { position: fixed; inset: 0; display: grid; place-content: center; background: var(--stage); padding: 24px; text-align: center; }
+
+@media (orientation: landscape) and (max-height: 560px) {
+  body { display: grid; grid-template-columns: 1fr 312px; grid-template-rows: auto 1fr auto; grid-template-areas: "top top" "stage gallery" "stage ctl"; }
+  #top { grid-area: top; padding: 4px 12px; }
+  #stage { grid-area: stage; min-height: 0; }
+  #gallery { grid-area: gallery; display: flex; flex-wrap: wrap; overflow-y: auto; overflow-x: hidden; align-content: flex-start; min-height: 0; padding: 6px 8px; }
+  #gallery .grp { display: none; }
+  #gallery button { width: 92px; height: 60px; flex: none; }
+  #stage { max-height: none; }
+  #ctl { grid-area: ctl; padding-bottom: 8px; }
+}
+
+</style>
+</head>
+<body>
+<header id="top">
+  <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="17" cy="20" r="6.5" fill="currentColor" opacity=".9"/>
+    <path d="M2 11c8 0 11 1.5 15 2.6S28 15 38 13M2 29c8 0 11-1.5 15-2.6S28 25 38 27M2 20h6.5M27 20c3 0 6-1.2 11-1.2" fill="none" stroke="var(--wind)" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
+  <h1>Taschen-Windkanal</h1>
+  <span id="legend" class="legend">Rauchfäden</span>
+  <button id="btn3d" class="iconbtn" type="button" aria-label="In 3D rechnen (große Fassung)" title="Dieses Handy kann WebGPU: die große Fassung mit 3D-Modellen öffnen" hidden>3D</button>
+  <button id="helpBtn" class="iconbtn" type="button" aria-label="Hilfe">?</button>
+</header>
+
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="hud">
+    <div class="hudrow"><span class="lbl">Luftwiderstand c<sub>W</sub></span><b id="hudCw">–</b><span class="lbl">Auftrieb c<sub>A</sub></span><b id="hudCa" class="small">–</b></div>
+    <div id="gauge" aria-hidden="true"><i></i></div>
+    <div class="hudrow sub"><span id="hudName">–</span><span id="hudRe"></span></div>
+  </div>
+  <div id="drawbar" hidden>
+    <span>Mit dem Finger ins Bild malen</span>
+    <button id="drawClear" type="button" class="ghost">Löschen</button>
+    <button id="drawDone" type="button" class="primary">Fertig</button>
+  </div>
+  <div id="toast" role="status"></div>
+</div>
+
+<div id="gallery" aria-label="Formen"></div>
+
+<div id="ctl">
+  <div class="row">
+    <label for="speed">Wind</label>
+    <input id="speed" type="range" min="1" max="60" step="1" value="30">
+    <span id="speedV" class="val">30 m/s</span>
+  </div>
+  <div class="row" id="angleRow">
+    <label for="angle">Neigung</label>
+    <input id="angle" type="range" min="-30" max="30" step="1" value="0">
+    <span id="angleV" class="val">0°</span>
+  </div>
+  <div class="btns">
+    <button id="modeBtn" type="button" class="wide" aria-label="Darstellung wechseln">Rauch</button>
+    <button id="playBtn" type="button" aria-label="Pause">❚❚</button>
+    <button id="resetBtn" type="button" aria-label="Neu starten">↺</button>
+  </div>
+</div>
+
+<dialog id="help">
+  <h2 tabindex="-1" autofocus>Taschen-Windkanal</h2>
+  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig (Tropfen ≈ 0,1), groß heißt bremsend (Platte quer ≈ 2). Der Balken zeigt dasselbe als Maß.</p>
+  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
+  <p>Wind: 1 bis 60 m/s. Bei frei schwebenden Formen lässt sich die Neigung einstellen. „Selber malen“: eigene Form mit dem Finger zeichnen, dann „Fertig“. ↺ startet die Rechnung neu.</p>
+  <div class="row"><span>Gitter</span>
+    <div id="gridSeg" class="seg" role="group"><button type="button" data-v="grob" aria-pressed="false">grob</button><button type="button" data-v="normal" aria-pressed="true">normal</button><button type="button" data-v="fein" aria-pressed="false">fein</button></div>
+  </div>
+  <p class="muted">Die große Fassung mit 3D-Modellen (WebGPU, für den PC; auf neuen Handys über den Knopf „3D“): <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
+  <button id="helpClose" type="button" class="primary">Schließen</button>
+</dialog>
+
+<div id="fatal" hidden>
+  <h2>Das klappt hier leider nicht</h2>
+  <p id="fatalText"></p>
+</div>
+
+<script>
+/* Taschen-Windkanal – Strömung um Silhouetten im Browser, gerechnet auf der Grafikkarte des Handys.
+   Lattice-Boltzmann D2Q9 in WebGL2 (läuft auf praktisch jedem Handy), Wirbelviskosität nach Smagorinsky,
+   Stoß regularisiert, Wand als Rückprall, Rauchfäden als mitgeführter Farbstoff.
+   Aufbau: Hilfsfunktionen, Formen, Rechenkern (WebGL), Bedienung. Eine einzige Datei, kein Server. */
+'use strict';
+
+const $ = (s) => document.querySelector(s);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const DEG = Math.PI / 180;
+const NU_AIR = 1.5e-5;        // Zähigkeit der Luft in m²/s
+const RHO_AIR = 1.204;        // Dichte der Luft in kg/m³
+const U_LB = 0.1;             // Gitterwind (Zellen je Schritt)
+const RAMP_STEPS = 400;       // sanfter Start: so viele Schritte, bis der Körper ganz dicht ist
+const QS = new URLSearchParams(location.search);
+
+// Zahl mit Komma, feste Nachkommastellen
+function fmt(v, d = 0) {
+  if (!Number.isFinite(v)) return '–';
+  return v.toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+// Farbtabellen (hex, 3 Byte je Stufe): turbo (Geschwindigkeit), coolwarm (Druck)
+const LUT_VEL = '30123b351e58392a733d358b4040a2424bb54456c74661d6466be34776ee4680f6458afc4294ff3d9efe37a8fa2fb2f427bee920c7df1bd0d518d7ca18dec01ae4b620eaac2aefa135f39443f78752fa7a61fc6c71fe5f80ff538fff499cfe40a9fb39b4f836bef434c8ef34d2e935dbe236e3db38ebd339f1cb3af6c33afaba39fcb136fea732fe9b2dfe9029fc8423f9751df56918f15d13ec530fe7490ce14109da3907d23105ca2a04c12302b71d02ac1701a11201950d018808027a0403';
+const LUT_PRES = '3b4cc03f53c6445acc4961d24e68d8536edd5875e15d7ce66282ea6788ee6c8ff17295f4779af77da0f982a6fb88abfd8fb1fe94b6ff9abbff9fbfffa5c3feaac7fdafcafcb5cdfabad0f8bfd3f6c4d5f3c9d7f0cdd9ecd2dbe8d6dce4dadce0dfdbd9e3d9d3e7d7ceead4c8edd1c2f0cdbbf2cab5f4c6aff5c1a9f6bda2f7b89cf7b396f7ad90f7a889f6a283f59c7df39475f18d6fee8669ec7f63e9785de57058e26952de614dd95847d55042d0473dcb3e38c53334c0282fba162bb40426';
+function lutBytes(hex) {
+  const n = hex.length / 6, out = new Uint8Array(n * 4);
+  for (let i = 0; i < n; i++) { out[i * 4] = parseInt(hex.substr(i * 6, 2), 16); out[i * 4 + 1] = parseInt(hex.substr(i * 6 + 2, 2), 16); out[i * 4 + 2] = parseInt(hex.substr(i * 6 + 4, 2), 16); out[i * 4 + 3] = 255; }
+  return out;
+}
+
+// ---------- Beispielformen ----------
+// Jede Form ist eine Silhouette als SVG-Pfad in einem Kasten von 200 × 100 (x nach rechts, y nach unten).
+// Der Wind kommt von links, die Nase zeigt also nach links. Formen mit ground: true stehen auf dem Boden
+// (die Unterkante des Pfads liegt dann auf dem Boden des Kanals). len: Länge in Metern (für die Reynoldszahl).
+// Mehrere Teilpfade werden vereinigt (Füllregel nonzero, alle im selben Drehsinn gezeichnet).
+
+const circ = (cx, cy, r) => `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
+const rect = (x, y, w, h, r = 0) => r > 0
+  ? `M${x + r} ${y}h${w - 2 * r}a${r} ${r} 0 0 1 ${r} ${r}v${h - 2 * r}a${r} ${r} 0 0 1 ${-r} ${r}h${-(w - 2 * r)}a${r} ${r} 0 0 1 ${-r} ${-r}v${-(h - 2 * r)}a${r} ${r} 0 0 1 ${r} ${-r}Z`
+  : `M${x} ${y}h${w}v${h}h${-w}Z`;
+const poly = (pts) => 'M' + pts.map(p => p.join(' ')).join('L') + 'Z';
+const ell = (cx, cy, rx, ry) => `M${cx - rx} ${cy}a${rx} ${ry} 0 1 0 ${2 * rx} 0a${rx} ${ry} 0 1 0 ${-2 * rx} 0Z`;
+// dicke Linie als Pfad (für Speichen, Rahmen, Leinen)
+const bar = (x0, y0, x1, y1, w) => { const dx = x1 - x0, dy = y1 - y0, l = Math.hypot(dx, dy) || 1, nx = -dy / l * w / 2, ny = dx / l * w / 2; return poly([[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]]); };
+
+// NACA-4-Profil (Sehne von x0 bis x1 auf Höhe yc), Dicke t (Anteil), Wölbung m bei p
+function naca(x0, x1, yc, t = 0.12, m = 0.02, p = 0.4, n = 40) {
+  const c = x1 - x0, up = [], lo = [];
+  for (let i = 0; i <= n; i++) {
+    const xc = 0.5 - 0.5 * Math.cos(Math.PI * i / n);
+    const yt = 5 * t * (0.2969 * Math.sqrt(xc) - 0.126 * xc - 0.3516 * xc * xc + 0.2843 * xc ** 3 - 0.1036 * xc ** 4);
+    const ycam = xc < p ? m / (p * p) * (2 * p * xc - xc * xc) : m / ((1 - p) ** 2) * (1 - 2 * p + 2 * p * xc - xc * xc);
+    const dyc = xc < p ? 2 * m / (p * p) * (p - xc) : 2 * m / ((1 - p) ** 2) * (p - xc);
+    const th = Math.atan(dyc);
+    up.push([x0 + c * (xc - yt * Math.sin(th)), yc - c * (ycam + yt * Math.cos(th))]);
+    lo.push([x0 + c * (xc + yt * Math.sin(th)), yc - c * (ycam - yt * Math.cos(th))]);
+  }
+  return 'M' + up.map(q => q[0].toFixed(2) + ' ' + q[1].toFixed(2)).join('L') + 'L' + lo.reverse().map(q => q[0].toFixed(2) + ' ' + q[1].toFixed(2)).join('L') + 'Z';
+}
+
+const SHAPES = [
+  // ---- Grundformen
+  { id: 'kreis', name: 'Kreis', group: 'Grundformen', len: 1, path: circ(100, 50, 40) },
+  { id: 'quadrat', name: 'Quadrat', group: 'Grundformen', len: 1, path: rect(60, 10, 80, 80) },
+  { id: 'dreieck', name: 'Dreieck', group: 'Grundformen', len: 1, path: poly([[45, 50], [150, 8], [150, 92]]) },
+  { id: 'tropfen', name: 'Tropfen', group: 'Grundformen', len: 1, info: 'die windschnittigste Form', path: 'M22 50C22 28 42 16 66 16C110 16 150 40 186 50C150 60 110 84 66 84C42 84 22 72 22 50Z' },
+  { id: 'platte_quer', name: 'Platte quer', group: 'Grundformen', len: 1, path: rect(96, 10, 8, 80) },
+  { id: 'platte_laengs', name: 'Platte längs', group: 'Grundformen', len: 2, path: rect(20, 47, 160, 6) },
+  { id: 'schale', name: 'Schale', group: 'Grundformen', len: 1, info: 'offen gegen den Wind, wie ein Fallschirm', path: 'M100 8A42 42 0 0 1 100 92L90 92A34 34 0 0 0 90 8Z' },
+  { id: 'kugelhaelfte', name: 'Halbkugel', group: 'Grundformen', len: 1, info: 'Rundung gegen den Wind', path: 'M100 8A42 42 0 0 0 100 92Z' },
+  { id: 'ellipse', name: 'Ellipse', group: 'Grundformen', len: 2, path: ell(100, 50, 80, 28) },
+  { id: 'fluegel', name: 'Tragflügel', group: 'Grundformen', len: 1.5, ref: 'len', info: 'NACA 2412, Beiwerte auf die Flügeltiefe bezogen', path: naca(20, 180, 52) },
+  { id: 'raute', name: 'Raute', group: 'Grundformen', len: 1, path: poly([[30, 50], [100, 14], [170, 50], [100, 86]]) },
+  // ---- Fahrzeuge
+  { id: 'kaefer', name: 'Käfer', group: 'Fahrzeuge', len: 4.1, ground: true, info: 'der runde Klassiker',
+    path: 'M18 78C18 62 30 56 46 54C58 40 72 24 100 22C128 20 148 34 160 50C176 54 186 62 186 76L186 80L18 80Z' + circ(58, 80, 15) + circ(150, 80, 15) },
+  { id: 'sportwagen', name: 'Sportwagen', group: 'Fahrzeuge', len: 4.5, ground: true,
+    path: 'M12 76L16 62C40 56 60 54 74 52C88 40 104 34 128 34C150 34 164 42 172 52L184 56C190 60 190 70 186 78L12 78Z' + circ(50, 78, 13) + circ(152, 78, 13) },
+  { id: 'lkw', name: 'Lkw', group: 'Fahrzeuge', len: 16, ground: true, info: 'Fahrerhaus und Koffer mit Spalt',
+    path: 'M14 80L14 40C14 30 20 22 30 22L52 22L58 44L58 80Z' + rect(64, 14, 128, 66) + circ(36, 80, 11) + circ(138, 80, 11) + circ(166, 80, 11) },
+  { id: 'bus', name: 'Bus', group: 'Fahrzeuge', len: 12, ground: true, path: rect(12, 18, 176, 62, 12) + circ(46, 80, 11) + circ(154, 80, 11) },
+  { id: 'zug', name: 'Zug', group: 'Fahrzeuge', len: 25, ground: true, info: 'die Nase eines Schnellzugs',
+    path: 'M10 80L10 70C10 58 30 36 58 28C72 24 90 22 110 22L200 22L200 80Z' },
+  { id: 'formel1', name: 'Rennwagen', group: 'Fahrzeuge', len: 5.5, ground: true,
+    path: 'M8 72L8 62L30 62L34 56L80 56L92 42L116 42L124 56L150 56L158 50L176 50L176 64L190 64L190 72Z' + circ(50, 72, 14) + circ(156, 72, 14) + circ(100, 36, 8) },
+  { id: 'wohnmobil', name: 'Wohnmobil', group: 'Fahrzeuge', len: 7, ground: true,
+    path: 'M14 80L14 52C14 46 18 42 24 40L40 36L52 32L60 20L186 20C190 20 192 22 192 26L192 80Z' + circ(50, 80, 12) + circ(154, 80, 12) },
+  { id: 'traktor', name: 'Traktor', group: 'Fahrzeuge', len: 4.5, ground: true,
+    path: 'M30 70L30 50L46 50L46 42L80 42L80 20L110 20L110 70Z' + 'M28 42L34 24L40 24L40 42Z' + circ(52, 70, 14) + circ(132, 62, 26) },
+  { id: 'motorrad', name: 'Motorrad', group: 'Fahrzeuge', len: 2.2, ground: true, info: 'mit geducktem Fahrer',
+    path: circ(48, 76, 18) + circ(152, 76, 18) + 'M44 66L60 46L90 42L120 46L140 54L150 66L130 72L60 72Z' + 'M86 44C84 30 92 22 102 22C112 22 118 30 116 44L130 50L110 56L92 54Z' + circ(68, 20, 10) + 'M60 28L72 30L84 44L68 46Z' },
+  { id: 'fahrrad', name: 'Radfahrer', group: 'Fahrzeuge', len: 1.8, ground: true,
+    path: circ(44, 74, 20) + circ(44, 74, 10) + circ(156, 74, 20) + circ(156, 74, 10) + 'M44 74L80 36L120 36L156 74L100 74Z' + circ(100, 74, 6)
+      + 'M84 42C80 30 86 24 96 26L112 48L104 52Z' + circ(88, 14, 10) + 'M80 24L98 22L112 36L100 44Z' },
+  { id: 'skifahrer', name: 'Skifahrer', group: 'Fahrzeuge', len: 1.8, ground: true, info: 'in der Hocke',
+    path: rect(20, 76, 170, 4) + 'M70 76L74 54L96 40L132 40L150 56L146 76Z' + circ(72, 36, 11) + 'M64 46L80 44L92 54L76 58Z' },
+  // ---- Luft und Raum
+  { id: 'flugzeug', name: 'Flugzeug', group: 'Luft und Raum', len: 38, info: 'Seitenansicht eines Verkehrsflugzeugs',
+    path: 'M12 52C12 44 24 38 44 38L164 38L190 30L196 32L188 44L188 58L170 62L80 62C40 62 12 58 12 52Z' + 'M150 38L166 14L178 14L170 38Z' + 'M80 58L120 58L112 68L68 66Z' + ell(100, 70, 16, 7) },
+  { id: 'zeppelin', name: 'Zeppelin', group: 'Luft und Raum', len: 75, path: 'M14 50C14 32 50 22 100 22C150 22 190 36 194 50C190 64 150 78 100 78C50 78 14 68 14 50Z' + 'M150 72L176 72L190 88L160 88Z' + rect(84, 76, 36, 10, 4) },
+  { id: 'ballon', name: 'Heißluftballon', group: 'Luft und Raum', len: 20, path: 'M60 44C60 20 80 8 100 8C120 8 140 20 140 44C140 62 116 76 108 84L92 84C84 76 60 62 60 44Z' + rect(90, 90, 20, 10) + bar(94, 84, 92, 90, 2) + bar(106, 84, 108, 90, 2) },
+  { id: 'rakete', name: 'Rakete', group: 'Luft und Raum', len: 50, path: 'M8 50L48 34L150 34L150 66L48 66Z' + 'M140 34L170 20L180 20L164 34L164 66L180 80L170 80L140 66Z' },
+  { id: 'papierflieger', name: 'Papierflieger', group: 'Luft und Raum', len: 0.3, path: poly([[12, 54], [188, 26], [120, 58], [150, 72], [118, 62], [100, 76]]) },
+  { id: 'shuttle', name: 'Raumfähre', group: 'Luft und Raum', len: 37, path: 'M16 48C16 40 30 34 50 34L150 34L160 42L176 42L176 60L50 64C30 64 16 58 16 48Z' + 'M120 34L150 10L162 10L160 34Z' + 'M70 60L160 56L170 70L60 68Z' },
+  { id: 'ufo', name: 'Ufo', group: 'Luft und Raum', len: 12, path: ell(100, 56, 92, 16) + 'M62 52C62 36 78 28 100 28C122 28 138 36 138 52Z' },
+  { id: 'drachen', name: 'Drachen', group: 'Luft und Raum', len: 1, info: 'Lenkdrachen, quer im Wind', path: poly([[60, 8], [120, 50], [60, 92], [40, 50]]) },
+  { id: 'schirm', name: 'Regenschirm', group: 'Luft und Raum', len: 1.1, info: 'im Sturm, Rundung voraus', path: 'M22 50C22 24 44 10 74 10L76 90C44 90 22 76 22 50Z' + rect(76, 46, 110, 6) + 'M186 46a7 7 0 0 1 0 14L180 60L180 52L186 52Z' },
+  // ---- Tiere
+  { id: 'delfin', name: 'Delfin', group: 'Tiere', len: 2.5, path: 'M8 50C14 44 30 40 44 40C60 26 90 20 120 24C150 28 170 40 178 50L190 36L196 40L188 54L196 68L190 72L178 60C168 70 140 80 110 80C80 80 54 70 44 60C30 62 14 58 8 50Z' + 'M86 24L100 8L112 10L108 26Z' + 'M70 68L84 84L92 82L84 66Z' },
+  { id: 'hai', name: 'Hai', group: 'Tiere', len: 4, path: 'M10 50C26 36 60 30 100 30C140 30 164 40 172 50C164 60 140 70 100 70C60 70 26 64 10 50Z' + 'M80 30L96 6L112 10L108 30Z' + 'M166 46L192 20L196 26L186 50L196 76L190 80L166 56Z' + 'M66 66L74 86L86 84L80 68Z' },
+  { id: 'fisch', name: 'Fisch', group: 'Tiere', len: 0.4, path: 'M10 50C30 28 70 22 104 24C130 26 148 36 156 50C148 64 130 74 104 76C70 78 30 72 10 50Z' + 'M150 50L190 26L182 50L190 74Z' + 'M72 26L84 10L100 12L96 28Z' },
+  { id: 'pinguin', name: 'Pinguin', group: 'Tiere', len: 1.1, ground: true, info: 'steht im Wind', path: 'M80 80C70 70 68 50 72 36C76 18 90 8 108 8C126 8 136 20 134 34L140 36L146 42L136 44C136 56 140 72 134 80Z' + 'M72 30L56 32L72 36Z' + rect(78, 80, 24, 10, 3) + rect(110, 80, 24, 10, 3) },
+  { id: 'moewe', name: 'Möwe', group: 'Tiere', len: 1.2, info: 'im Gleitflug', path: 'M8 48L30 40L92 44L170 50L196 46L172 56L96 56L30 54Z' + 'M60 46L52 22L60 10L80 12L96 44Z' + 'M100 56L96 72L108 86L124 84L128 56Z' },
+  { id: 'katze', name: 'Katze', group: 'Tiere', len: 0.5, ground: true, info: 'sitzt und schaut in den Wind', path: 'M44 80L48 56C50 40 60 30 76 28L72 16L86 22L98 22L112 14L110 30C122 36 128 48 130 60C132 70 136 80 148 80L172 80C180 80 186 72 182 64L176 64C178 70 174 74 168 74L160 74C154 60 150 46 148 40L150 80Z' },
+  { id: 'dackel', name: 'Dackel', group: 'Tiere', len: 0.9, ground: true, path: 'M10 46C18 36 32 36 44 42L58 50L150 50C170 50 182 46 190 36L196 40C190 54 174 62 150 62L60 62L60 80L50 80L50 64L44 64L44 80L34 80L34 60C24 58 14 54 10 46Z' + 'M136 62L136 80L146 80L146 62Z' + 'M160 62L160 80L170 80L170 62Z' + 'M12 48L6 62L14 62Z' },
+  { id: 'elefant', name: 'Elefant', group: 'Tiere', len: 6, ground: true, path: 'M18 46C18 34 34 26 50 28C60 10 90 6 120 10C150 14 176 30 180 50C182 62 176 70 170 72L170 80L154 80L154 70L128 70L128 80L112 80L112 70L80 70L80 80L64 80L64 68C52 68 44 60 40 54L40 80L30 80L30 66C22 62 18 54 18 46Z' + 'M12 40C4 42 2 54 10 56L16 50Z' },
+  { id: 'schildkroete', name: 'Schildkröte', group: 'Tiere', len: 0.6, ground: true, path: 'M40 70C40 44 70 26 110 26C150 26 180 44 180 70Z' + 'M14 62C14 54 26 50 40 56L44 70L26 72C18 72 14 68 14 62Z' + rect(60, 70, 22, 10, 4) + rect(140, 70, 22, 10, 4) + 'M176 66L196 60L190 72Z' },
+  { id: 'ente', name: 'Ente', group: 'Tiere', len: 0.5, ground: true, info: 'schwimmt gegen den Wind', path: 'M40 80C36 68 46 56 72 54L140 54C166 54 184 60 190 70L196 80Z' + 'M60 54C58 36 66 26 80 26C92 26 100 34 98 50L94 56L70 58Z' + 'M66 36L40 42L66 46Z' },
+  // ---- Gebäude und Dinge
+  { id: 'haus', name: 'Haus', group: 'Gebäude und Dinge', len: 10, ground: true, path: 'M40 80L40 50L100 16L160 50L160 80Z' + rect(126, 22, 12, 24) },
+  { id: 'kirche', name: 'Kirche', group: 'Gebäude und Dinge', len: 30, ground: true, path: 'M24 80L24 40L48 6L72 40L72 80Z' + 'M72 80L72 46L130 26L188 46L188 80Z' },
+  { id: 'baum', name: 'Baum', group: 'Gebäude und Dinge', len: 12, ground: true, path: circ(100, 36, 30) + circ(76, 50, 20) + circ(126, 48, 22) + rect(92, 60, 16, 20) },
+  { id: 'turm', name: 'Turm', group: 'Gebäude und Dinge', len: 60, ground: true, info: 'Schornstein oder Hochhaus', path: rect(86, 4, 28, 76) },
+  { id: 'bruecke', name: 'Brücke', group: 'Gebäude und Dinge', len: 20, info: 'Brückenquerschnitt, Wind von der Seite', path: poly([[20, 40], [180, 40], [190, 60], [10, 60]]) + rect(16, 30, 4, 10) + rect(180, 30, 4, 10) },
+  { id: 'flasche', name: 'Flasche', group: 'Gebäude und Dinge', len: 0.3, path: 'M10 42L44 42C56 42 64 32 80 30L160 30C176 30 190 38 190 50C190 62 176 70 160 70L80 70C64 68 56 58 44 58L10 58Z' },
+  { id: 'ei', name: 'Ei', group: 'Gebäude und Dinge', len: 0.06, info: 'Spitze voraus', path: 'M20 50C20 30 44 16 80 16C130 16 180 30 180 50C180 70 130 84 80 84C44 84 20 70 20 50Z' },
+  { id: 'banane', name: 'Banane', group: 'Gebäude und Dinge', len: 0.2, path: 'M14 60C40 22 120 10 186 30L190 40C130 30 60 44 26 74Z' },
+  { id: 'tasse', name: 'Tasse', group: 'Gebäude und Dinge', len: 0.1, ground: true, path: 'M50 24L150 24L144 80L56 80Z' + 'M150 36C176 36 180 70 150 70L150 62C168 62 166 44 150 44Z' },
+  { id: 'pilz', name: 'Pilz', group: 'Gebäude und Dinge', len: 0.2, ground: true, path: 'M36 46C36 22 66 8 100 8C134 8 164 22 164 46C164 52 158 54 150 54L50 54C42 54 36 52 36 46Z' + 'M84 54L116 54L112 80L88 80Z' },
+  { id: 'korken', name: 'Korken', group: 'Gebäude und Dinge', len: 0.05, path: 'M30 30L120 30C150 24 180 24 180 50C180 76 150 76 120 70L30 70Z' },
+  { id: 'kegel', name: 'Kegel', group: 'Gebäude und Dinge', len: 0.4, ground: true, info: 'Verkehrshütchen', path: poly([[86, 10], [114, 10], [136, 72], [64, 72]]) + rect(50, 72, 100, 8) },
+];
+
+// ---------- Rechenkern: Lattice-Boltzmann D2Q9 in WebGL2 ----------
+// Zustand in drei Texturen je Satz (Ping-Pong): T0 = (f0 f1 f2 f3), T1 = (f4 f5 f6 f7), T2 = (f8, rho-1, ux, uy).
+// Gespeichert werden die Verteilungen nach dem Stoß; das Strömen passiert beim Lesen der Nachbarn (Ziehen).
+// Dazu eine Maske (fest/frei), ein Farbstofffeld (Rauch) und ein Kraftfeld (Impulsaustausch an der Wand),
+// das über eine Kette von Halbierungen aufsummiert und einmal je Bild ausgelesen wird.
+
+const VS = `#version 300 es
+precision highp float;
+const vec2 Q[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+void main() { gl_Position = vec4(Q[gl_VertexID], 0.0, 1.0); }`;
+
+// Gitterrichtungen D2Q9: 0 Ruhe, 1 +x, 2 +y, 3 -x, 4 -y, 5 (+,+), 6 (-,+), 7 (-,-), 8 (+,-)
+const D2Q9_HEAD = `#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+const ivec2 C[9] = ivec2[9](ivec2(0,0), ivec2(1,0), ivec2(0,1), ivec2(-1,0), ivec2(0,-1), ivec2(1,1), ivec2(-1,1), ivec2(-1,-1), ivec2(1,-1));
+const float W[9] = float[9](4.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0);
+const int OPP[9] = int[9](0, 3, 4, 1, 2, 7, 8, 5, 6);
+const int MIRY[9] = int[9](0, 1, 4, 3, 2, 8, 7, 6, 5);
+float feq(int i, float rho, vec2 u) {
+  float cu = float(C[i].x) * u.x + float(C[i].y) * u.y;
+  return W[i] * rho * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * dot(u, u));
+}
+`;
+
+const FS_STEP = D2Q9_HEAD + `
+uniform sampler2D t0; uniform sampler2D t1; uniform sampler2D t2; uniform sampler2D mask;
+uniform ivec2 N;
+uniform float tau0;     // Relaxationszeit aus der Zähigkeit
+uniform float uin;      // Einlassgeschwindigkeit (Gitter)
+uniform float csm;      // Smagorinsky-Konstante
+uniform int ground;     // 1: Boden unten haftet (Fahrzeuge, Gebäude), 0: glatte Wand
+uniform float spongeIn; // Länge der Dämpfungszone am Einlass (Zellen)
+uniform float spongeOut;// ... am Auslass
+uniform float spongeWall;// ... an Decke und Boden
+uniform float beta;     // Dichtheit des Körpers beim Start (0 durchlässig … 1 fest)
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+layout(location = 2) out vec4 o2;
+layout(location = 3) out vec4 o3;
+float fetchF(int i, ivec2 p) {
+  if (i < 4) return texelFetch(t0, p, 0)[i];
+  if (i < 8) return texelFetch(t1, p, 0)[i - 4];
+  return texelFetch(t2, p, 0).x;
+}
+bool isSolid(ivec2 p) { return texelFetch(mask, p, 0).r > 0.5; }
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  bool solidP = isSolid(p);
+  if (solidP && beta >= 1.0) {
+    // feste Zelle: Ruhe (so startet sie sauber, falls sie wieder frei wird)
+    o0 = vec4(W[0], W[1], W[2], W[3]); o1 = vec4(W[4], W[5], W[6], W[7]); o2 = vec4(W[8], 0.0, 0.0, 0.0); o3 = vec4(0.0);
+    return;
+  }
+  // Sanfter Start (beta < 1): Der Körper ist zunächst durchlässig und wird über einige hundert Schritte dicht
+  // (teilweiser Rückprall in den Körperzellen). Ein schlagartig auftauchender Körper würde einen Druckstoß
+  // vom Zehnfachen des Staudrucks auslösen, der lange durch den Kanal liefe.
+  float f[9];
+  vec2 F = vec2(0.0);
+  int wallBits = 0;
+  if (p.x == 0) {
+    // Einlass: Wind vorgegeben, Dichte von der Nachbarzelle (Gleichgewicht)
+    float rin = 1.0 + texelFetch(t2, ivec2(1, p.y), 0).y;
+    for (int i = 0; i < 9; i++) f[i] = feq(i, rin, vec2(uin, 0.0));
+  } else if (p.x == N.x - 1) {
+    // Auslass: Druck vorgegeben (Dichte 1), Geschwindigkeit von der Nachbarzelle; das verankert den Druck im Kanal
+    vec2 uo = texelFetch(t2, ivec2(N.x - 2, p.y), 0).zw;
+    for (int i = 0; i < 9; i++) f[i] = feq(i, 1.0, uo);
+  } else {
+    for (int i = 0; i < 9; i++) {
+      ivec2 n = p - C[i];
+      int j = i;
+      if (n.y < 0) {
+        if (ground == 1) { f[i] = fetchF(OPP[i], p); wallBits |= (1 << i); continue; }   // Boden haftet: Rückprall
+        n.y = 0; j = MIRY[i];                                                   // glatte Wand: Spiegelung
+      }
+      if (n.y >= N.y) { n.y = N.y - 1; j = MIRY[i]; }                           // Decke: Spiegelung
+      if (beta >= 1.0 && isSolid(n)) {
+        f[i] = fetchF(OPP[i], p);                                               // Wand: Rückprall an der halben Zelle
+        F += 2.0 * (f[i] - W[i]) * vec2(C[OPP[i]]);                             // Impuls an die Wand (ohne den Ruhedruck,
+                                                                                // der sich nur bei geschlossenen Körpern aufhebt; Räder auf dem Boden sind offen)
+        wallBits |= (1 << i);
+        continue;
+      }
+      f[i] = fetchF(j, n);
+    }
+    // Eingeklemmte Richtungspaare (Spalt von einer Zelle, etwa Reifen am Boden): beide Verteilungen mitteln, sonst
+    // schwingt der Impuls dort jeden Schritt hin und her
+    for (int i = 1; i < 3; i++) {
+      int o = OPP[i];
+      if ((wallBits & (1 << i)) != 0 && (wallBits & (1 << o)) != 0) { float m = 0.5 * (f[i] + f[o]); F -= vec2(C[i]) * (m - f[i]); F += vec2(C[i]) * (m - f[o]); f[i] = m; f[o] = m; }
+    }
+    if ((wallBits & 32) != 0 && (wallBits & 128) != 0) { float m = 0.5 * (f[5] + f[7]); F -= vec2(C[5]) * (m - f[5]); F += vec2(C[5]) * (m - f[7]); f[5] = m; f[7] = m; }
+    if ((wallBits & 64) != 0 && (wallBits & 256) != 0) { float m = 0.5 * (f[6] + f[8]); F -= vec2(C[6]) * (m - f[6]); F += vec2(C[6]) * (m - f[8]); f[6] = m; f[8] = m; }
+  }
+  float rho = 0.0; vec2 m = vec2(0.0);
+  for (int i = 0; i < 9; i++) { rho += f[i]; m += f[i] * vec2(C[i]); }
+  rho = max(rho, 0.2);
+  vec2 u = m / rho;
+  float um = length(u);
+  if (um > 0.4) u *= 0.4 / um;
+  // Nichtgleichgewicht und Spannungstensor
+  float e[9]; float pxx = 0.0, pyy = 0.0, pxy = 0.0;
+  for (int i = 0; i < 9; i++) {
+    e[i] = feq(i, rho, u);
+    float d = f[i] - e[i];
+    pxx += d * float(C[i].x * C[i].x); pyy += d * float(C[i].y * C[i].y); pxy += d * float(C[i].x * C[i].y);
+  }
+  // Smagorinsky: Wirbelviskosität aus dem Nichtgleichgewicht
+  float pn = sqrt(pxx * pxx + pyy * pyy + 2.0 * pxy * pxy);
+  float tau = 0.5 * (tau0 + sqrt(tau0 * tau0 + 18.0 * 1.4142136 * csm * csm * pn / rho));
+  // Dämpfungszonen an beiden Enden: Dort werden Dichte (und am Einlass auch die Geschwindigkeit) sanft auf den
+  // Sollzustand gezogen, damit Druckwellen vom Start und von Wirbeln nicht hin und her laufen; vor dem Auslass wird
+  // außerdem das Nichtgleichgewicht stärker geglättet (Wirbel klingen ab, statt an der Wand zu reflektieren).
+  // Die Einlasszone liegt im verdeckten Vorlauf, die Auslasszone ist schmal.
+  float sIn = max(0.0, 1.0 - float(p.x) / spongeIn);
+  float sOut = max(0.0, 1.0 - float(N.x - 1 - p.x) / spongeOut);
+  // Decke und (bei freien Formen) Boden dämpfen nur den Druck: Querwellen laufen sonst endlos zwischen den Wänden
+  float sWall = max(0.0, 1.0 - float(N.y - 1 - p.y) / spongeWall);
+  if (ground == 0) sWall = max(sWall, max(0.0, 1.0 - float(p.y) / spongeWall));
+  float om1 = (1.0 - 1.0 / tau) * (1.0 - 0.9 * sOut * sOut);
+  // Lange Druckwellen (Kanallänge) kann keine Zone schlucken; sie werden überall ganz schwach gedämpft (Zeitmaß 500 Schritte),
+  // das verfälscht die Strömung um weniger als ein Prozent
+  float sigma = max(max(0.1 * sIn * sIn, 0.1 * sOut * sOut), 0.3 * sWall * sWall) + 0.002;
+  float rhoT = 1.0;
+  vec2 uT = sIn > 0.0 ? mix(u, vec2(uin, 0.0), sIn * sIn) : u;
+  float g[9];
+  for (int i = 0; i < 9; i++) {
+    // regularisiert: nur der Spannungsanteil des Nichtgleichgewichts bleibt
+    float cx = float(C[i].x), cy = float(C[i].y);
+    float q = (cx * cx - 1.0 / 3.0) * pxx + (cy * cy - 1.0 / 3.0) * pyy + 2.0 * cx * cy * pxy;
+    g[i] = e[i] + om1 * W[i] * 4.5 * q;
+    if (sigma > 0.0) g[i] -= sigma * (e[i] - feq(i, rhoT, uT));
+  }
+  if (solidP) {
+    // durchlässiger Körper beim Start: Anteil beta wird zurückgeworfen; die Kraft ist der dabei abgegebene Impuls
+    float h[9];
+    for (int i = 0; i < 9; i++) h[i] = mix(g[i], g[OPP[i]], beta);
+    for (int i = 0; i < 9; i++) g[i] = h[i];
+    F = 2.0 * beta * m;
+    u = vec2(0.0); um = 0.0;
+  }
+  o0 = vec4(g[0], g[1], g[2], g[3]);
+  o1 = vec4(g[4], g[5], g[6], g[7]);
+  o2 = vec4(g[8], rho - 1.0, u);
+  o3 = vec4(F, um, 0.0);
+}`;
+
+// Anfangszustand: Gleichgewicht mit Wind überall (feste Zellen in Ruhe)
+const FS_INIT = D2Q9_HEAD + `
+uniform sampler2D mask; uniform float uin;
+layout(location = 0) out vec4 o0; layout(location = 1) out vec4 o1; layout(location = 2) out vec4 o2; layout(location = 3) out vec4 o3;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec2 u = vec2(uin, 0.0);   // auch in den Körperzellen: beim sanften Start sind sie zunächst durchlässig
+  o0 = vec4(feq(0, 1.0, u), feq(1, 1.0, u), feq(2, 1.0, u), feq(3, 1.0, u));
+  o1 = vec4(feq(4, 1.0, u), feq(5, 1.0, u), feq(6, 1.0, u), feq(7, 1.0, u));
+  o2 = vec4(feq(8, 1.0, u), 0.0, u);
+  o3 = vec4(0.0);
+}`;
+
+// Rauch: Farbstoff mit der Strömung mitführen (rückwärts verfolgen), am Einlass in Fäden einspeisen
+const FS_DYE = `#version 300 es
+precision highp float; precision highp sampler2D;
+uniform sampler2D dye; uniform sampler2D t2; uniform sampler2D mask;
+uniform vec2 N; uniform float dt; uniform float decay; uniform float spacing; uniform float phase;
+out vec4 o;
+void main() {
+  ivec2 ip = ivec2(gl_FragCoord.xy);
+  if (texelFetch(mask, ip, 0).r > 0.5) { o = vec4(0.0); return; }
+  vec2 u = texelFetch(t2, ip, 0).zw;
+  vec2 src = (gl_FragCoord.xy - u * dt) / N;
+  float d = texture(dye, src).r * decay;
+  float yy = mod(gl_FragCoord.y + phase, spacing);
+  if (gl_FragCoord.x < 3.0 && yy < 1.0) d = 1.0;
+  o = vec4(d, 0.0, 0.0, 1.0);
+}`;
+
+// Summen: je 2×2 Zellen zusammenfassen (Kraft summieren, Geschwindigkeit: Größtwert)
+const FS_REDUCE = `#version 300 es
+precision highp float; precision highp sampler2D;
+uniform sampler2D src;
+out vec4 o;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy) * 2, hi = textureSize(src, 0) - 1;   // am Rand (ungerade Größen) nicht über die Textur hinauslesen
+  vec4 a = texelFetch(src, p, 0), b = texelFetch(src, min(p + ivec2(1, 0), hi), 0), c = texelFetch(src, min(p + ivec2(0, 1), hi), 0), d = texelFetch(src, min(p + ivec2(1, 1), hi), 0);
+  o = vec4(a.xy + b.xy + c.xy + d.xy, max(max(a.z, b.z), max(c.z, d.z)), 0.0);
+}`;
+
+// Bild: Feld einfärben, Modell zeichnen, Rauch darüber
+const FS_DRAW = `#version 300 es
+precision highp float; precision highp sampler2D;
+uniform sampler2D t2; uniform sampler2D mask; uniform sampler2D dye; uniform sampler2D lutV; uniform sampler2D lutP;
+uniform vec2 N; uniform vec2 view;   // view: Bildgröße in Pixeln
+uniform int mode;                    // 0 Rauch, 1 Geschwindigkeit, 2 Druck, 3 Wirbel
+uniform float uin; uniform float pref; uniform float wscale;
+uniform float x0;                    // verdeckter Vorlauf: das Bild beginnt bei dieser Zelle
+out vec4 o;
+vec4 fetch(ivec2 p) { p = clamp(p, ivec2(0), ivec2(N) - 1); return texelFetch(t2, p, 0); }
+vec4 bil(vec2 q) {   // bilinear aus Zellmitten
+  vec2 g = q - 0.5; ivec2 i = ivec2(floor(g)); vec2 f = g - vec2(i);
+  return mix(mix(fetch(i), fetch(i + ivec2(1, 0)), f.x), mix(fetch(i + ivec2(0, 1)), fetch(i + ivec2(1, 1)), f.x), f.y);
+}
+float solidAt(vec2 q) { return texture(mask, q / N).r; }
+void main() {
+  vec2 q = vec2(x0, 0.0) + gl_FragCoord.xy / view * vec2(N.x - x0, N.y);   // Gitterkoordinate (Zellen)
+  vec4 m = bil(q);
+  vec2 u = m.zw;
+  vec3 col;
+  if (mode == 0) {
+    float s = length(u) / (2.2 * uin);
+    col = mix(vec3(0.055, 0.075, 0.105), vec3(0.11, 0.20, 0.32), clamp(s, 0.0, 1.0));
+  } else if (mode == 1) {
+    float s = clamp(length(u) / (2.2 * uin), 0.0, 1.0);
+    col = texture(lutV, vec2(s, 0.5)).rgb;
+  } else if (mode == 2) {
+    float cp = (m.y - pref) / 3.0 / (0.5 * uin * uin);
+    float s = 0.5 + 0.5 * sign(cp) * pow(min(abs(cp), 1.0), 0.7);
+    col = texture(lutP, vec2(s, 0.5)).rgb;
+  } else {
+    // Wirbelstärke, über 3×3 Zellen geglättet (sonst flimmert das Gitterrauschen)
+    float w = 0.0;
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+      ivec2 c = ivec2(q) + ivec2(i, j);
+      w += (fetch(c + ivec2(1, 0)).w - fetch(c - ivec2(1, 0)).w) - (fetch(c + ivec2(0, 1)).z - fetch(c - ivec2(0, 1)).z);
+    }
+    float s = clamp(w / 9.0 * wscale / uin, -1.0, 1.0);
+    vec3 neg = vec3(0.15, 0.45, 0.95), pos = vec3(0.98, 0.42, 0.2), mid = vec3(0.09, 0.11, 0.14);
+    col = s < 0.0 ? mix(mid, neg, pow(-s, 0.6)) : mix(mid, pos, pow(s, 0.6));
+  }
+  if (mode == 0 || mode == 1) {
+    float d = texture(dye, q / N).r;
+    col = mix(col, vec3(0.95, 0.96, 0.98), clamp(d * 0.95, 0.0, 1.0));
+  }
+  // Modell: hellgrau mit weichem Rand
+  float sd = 0.0;
+  for (int k = 0; k < 4; k++) { vec2 e = vec2(k == 0 ? 0.5 : k == 1 ? -0.5 : 0.0, k == 2 ? 0.5 : k == 3 ? -0.5 : 0.0); sd += solidAt(q + e); }
+  sd *= 0.25;
+  col = mix(col, vec3(0.80, 0.84, 0.88), smoothstep(0.2, 0.8, sd));
+  o = vec4(col, 1.0);
+}`;
+
+class Lbm {
+  constructor(canvas) {
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: false, powerPreference: 'high-performance' });
+    if (!gl) throw new Error('Kein WebGL2. Dieses Gerät oder dieser Browser kann die Rechnung nicht ausführen.');
+    if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('Die Grafikkarte kann keine Fließkomma-Texturen (EXT_color_buffer_float). Bitte einen anderen Browser versuchen.');
+    this.gl = gl; this.canvas = canvas;
+    this.P = {
+      step: this.program(FS_STEP), init: this.program(FS_INIT), dye: this.program(FS_DYE), reduce: this.program(FS_REDUCE), draw: this.program(FS_DRAW),
+    };
+    this.vao = gl.createVertexArray();
+    this.lutV = this.lutTexture(lutBytes(LUT_VEL)); this.lutP = this.lutTexture(lutBytes(LUT_PRES));
+    this.steps = 0;
+  }
+  program(fs) {
+    const gl = this.gl, sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error('Shader: ' + gl.getShaderInfoLog(s)); return s; };
+    const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('Programm: ' + gl.getProgramInfoLog(p));
+    const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name] = gl.getUniformLocation(p, info.name); }
+    return { p, u };
+  }
+  lutTexture(bytes) {
+    const gl = this.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, bytes.length / 4, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, bytes);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  tex(w, h, ifmt, fmt, type, filter) {
+    const gl = this.gl, t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, ifmt, w, h);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  }
+  fbo(texs) {
+    const gl = this.gl, f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+    texs.forEach((t, i) => gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
+    gl.drawBuffers(texs.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+    const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    if (st !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Framebuffer unvollständig (' + st + '). Die Grafikkarte kann die Texturen nicht als Zeichenziel nutzen.');
+    return f;
+  }
+  // Gitter anlegen (nx × ny Zellen)
+  build(nx, ny, x0 = 0) {
+    const gl = this.gl;
+    this.destroyGrid();
+    this.nx = nx; this.ny = ny; this.x0 = x0;   // x0: verdeckter Vorlauf am Einlass (wird nicht gezeichnet)
+    const S = () => this.tex(nx, ny, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST);
+    this.sets = [0, 1].map(() => { const t = [S(), S(), S(), S()]; return { t, f: this.fbo(t) }; });
+    this.parity = 0;
+    this.mask = this.tex(nx, ny, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);   // nur der rote Kanal zählt (RGBA ist überall verlässlich)
+    this.maskData = new Uint8Array(nx * ny); this.maskRGBA = new Uint8Array(nx * ny * 4);
+    this.dyes = [0, 1].map(() => { const t = this.tex(nx, ny, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR); return { t, f: this.fbo([t]) }; });
+    this.dyeParity = 0;
+    // Kette für die Summen
+    this.red = []; let w = nx, h = ny;
+    while (w > 1 || h > 1) { w = Math.ceil(w / 2); h = Math.ceil(h / 2); const t = this.tex(w, h, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST); this.red.push({ w, h, t, f: this.fbo([t]) }); }
+    this.readBuf = new Float32Array(4);
+    this.steps = 0;
+  }
+  destroyGrid() {
+    const gl = this.gl;
+    if (!this.sets) return;
+    for (const s of this.sets) { gl.deleteFramebuffer(s.f); s.t.forEach(t => gl.deleteTexture(t)); }
+    for (const d of this.dyes) { gl.deleteFramebuffer(d.f); gl.deleteTexture(d.t); }
+    for (const r of this.red) { gl.deleteFramebuffer(r.f); gl.deleteTexture(r.t); }
+    gl.deleteTexture(this.mask);
+    this.sets = null;
+  }
+  setMask(data) {
+    const gl = this.gl; this.maskData.set(data);
+    const m = this.maskRGBA; for (let i = 0; i < data.length; i++) { const v = data[i] ? 255 : 0; m[i * 4] = v; m[i * 4 + 1] = v; m[i * 4 + 2] = v; m[i * 4 + 3] = 255; }
+    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, this.mask);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.nx, this.ny, gl.RGBA, gl.UNSIGNED_BYTE, m);
+  }
+  bindTex(unit, t) { const gl = this.gl; gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
+  run(prog, fbo, w, h, setup) {
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, w, h);
+    gl.useProgram(prog.p); gl.bindVertexArray(this.vao);
+    setup(prog.u);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+  // Anfangszustand setzen (Wind überall), Rauch löschen
+  init(uin) {
+    const gl = this.gl;
+    for (const s of this.sets) this.run(this.P.init, s.f, this.nx, this.ny, (u) => { this.bindTex(0, this.mask); gl.uniform1i(u.mask, 0); gl.uniform1f(u.uin, uin); });
+    for (const d of this.dyes) { gl.bindFramebuffer(gl.FRAMEBUFFER, d.f); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+    this.steps = 0; this.sinceInit = 0;
+  }
+  // n Zeitschritte
+  step(n, prm) {
+    const gl = this.gl;
+    for (let k = 0; k < n; k++) {
+      const src = this.sets[this.parity], dst = this.sets[1 - this.parity];
+      const t = Math.min(1, (this.sinceInit || 0) / RAMP_STEPS), beta = prm.beta !== undefined ? prm.beta : t * t * (3 - 2 * t);
+      this.sinceInit++;
+      this.run(this.P.step, dst.f, this.nx, this.ny, (u) => {
+        this.bindTex(0, src.t[0]); this.bindTex(1, src.t[1]); this.bindTex(2, src.t[2]); this.bindTex(3, this.mask);
+        gl.uniform1i(u.t0, 0); gl.uniform1i(u.t1, 1); gl.uniform1i(u.t2, 2); gl.uniform1i(u.mask, 3);
+        gl.uniform2i(u.N, this.nx, this.ny);
+        gl.uniform1f(u.tau0, 0.5 + 3 * prm.nu); gl.uniform1f(u.uin, prm.uin); gl.uniform1f(u.csm, prm.csm); gl.uniform1i(u.ground, prm.ground ? 1 : 0);
+        // Dämpfungszonen: der ganze verdeckte Vorlauf, 15 % der Länge vor dem Auslass, 12 % der Höhe an Decke und Boden
+        gl.uniform1f(u.spongeIn, Math.max(8, (this.x0 || 0) - 2)); gl.uniform1f(u.spongeOut, Math.max(12, 0.15 * this.nx)); gl.uniform1f(u.spongeWall, Math.max(8, 0.12 * this.ny));
+        gl.uniform1f(u.beta, beta);
+      });
+      this.parity = 1 - this.parity;
+      this.steps++;
+    }
+  }
+  // Rauch um dt Schritte weiterführen
+  dye(dt, spacing, phase) {
+    const gl = this.gl, src = this.dyes[this.dyeParity], dst = this.dyes[1 - this.dyeParity], cur = this.sets[this.parity];
+    this.run(this.P.dye, dst.f, this.nx, this.ny, (u) => {
+      this.bindTex(0, src.t); this.bindTex(1, cur.t[2]); this.bindTex(2, this.mask);
+      gl.uniform1i(u.dye, 0); gl.uniform1i(u.t2, 1); gl.uniform1i(u.mask, 2);
+      gl.uniform2f(u.N, this.nx, this.ny); gl.uniform1f(u.dt, dt); gl.uniform1f(u.decay, Math.pow(0.9997, dt)); gl.uniform1f(u.spacing, spacing); gl.uniform1f(u.phase, phase);
+    });
+    this.dyeParity = 1 - this.dyeParity;
+  }
+  // Kraft auf das Modell (Summe) und größte Geschwindigkeit: [Fx, Fy, umax]
+  readForce() {
+    const gl = this.gl;
+    let src = this.sets[this.parity].t[3];
+    for (const r of this.red) {
+      this.run(this.P.reduce, r.f, r.w, r.h, (u) => { this.bindTex(0, src); gl.uniform1i(u.src, 0); });
+      src = r.t;
+    }
+    const last = this.red[this.red.length - 1];
+    gl.bindFramebuffer(gl.FRAMEBUFFER, last.f);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, this.readBuf);
+    return [this.readBuf[0], this.readBuf[1], this.readBuf[2]];
+  }
+  // mittlere Dichteabweichung einer Spalte (Bezugsdruck: Spalte hinter dem Einlass)
+  readColumnRho(x) {
+    const gl = this.gl, cur = this.sets[this.parity];
+    if (!this.colBuf || this.colBuf.length !== this.ny * 4) this.colBuf = new Float32Array(this.ny * 4);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, cur.f); gl.readBuffer(gl.COLOR_ATTACHMENT2);
+    gl.readPixels(x, 0, 1, this.ny, gl.RGBA, gl.FLOAT, this.colBuf);
+    gl.readBuffer(gl.COLOR_ATTACHMENT0);
+    let s = 0; for (let y = 0; y < this.ny; y++) s += this.colBuf[y * 4 + 1];
+    return s / this.ny;
+  }
+  // Bild zeichnen
+  draw(mode, prm, w, h) {
+    const gl = this.gl, cur = this.sets[this.parity];
+    this.run(this.P.draw, null, w, h, (u) => {
+      this.bindTex(0, cur.t[2]); this.bindTex(1, this.mask); this.bindTex(2, this.dyes[this.dyeParity].t); this.bindTex(3, this.lutV); this.bindTex(4, this.lutP);
+      gl.uniform1i(u.t2, 0); gl.uniform1i(u.mask, 1); gl.uniform1i(u.dye, 2); gl.uniform1i(u.lutV, 3); gl.uniform1i(u.lutP, 4);
+      gl.uniform2f(u.N, this.nx, this.ny); gl.uniform2f(u.view, w, h); gl.uniform1i(u.mode, mode);
+      gl.uniform1f(u.uin, prm.uref || prm.uin); gl.uniform1f(u.pref, prm.pref || 0); gl.uniform1f(u.wscale, prm.wscale || 8);
+      gl.uniform1f(u.x0, this.x0 || 0);
+    });
+  }
+}
+
+// ---------- Bedienung ----------
+const App = {
+  shape: null, mode: 0, running: true, speed: 30, angle: 0, grid: 'normal',
+  spf: 4, frameMs: 16, lastT: 0, force: { n: 0, fx: 0, fy: 0 }, draw: false, drawn: null, nuMin: 0,
+};
+const GRIDS = { grob: 300, normal: 400, fein: 600 };
+const MODES = [['Rauch', 'Rauchfäden'], ['Tempo', 'Geschwindigkeit'], ['Druck', 'Druck'], ['Wirbel', 'Wirbel']];
+let lbm;
+
+// Gittergröße aus der Bildfläche: sichtbare Breite fest, Höhe nach dem Seitenverhältnis; davor ein verdeckter Vorlauf,
+// damit der Einlass weit genug vor dem Modell liegt
+function gridSize() {
+  const r = $('#stage').getBoundingClientRect();
+  const nxv = GRIDS[App.grid] || 400, x0 = Math.round(nxv * 0.22);
+  const ny = clamp(Math.round(nxv * r.height / Math.max(r.width, 1) / 2) * 2, 120, Math.round(nxv * 1.0));
+  return [nxv + x0, ny, x0];
+}
+
+// Form in die Maske zeichnen: Pfad (200 × 100) in den Kanal legen, gedreht um die Mitte; Bodenformen stehen auf dem Boden
+function rasterShape(s, nx, ny, angleDeg) {
+  // doppelt so fein gezeichnet und je Zelle die Deckung gezählt: so werden runde Formen oben und unten gleich
+  const S = 2, cv = document.createElement('canvas'); cv.width = nx * S; cv.height = ny * S;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000'; g.fillRect(0, 0, nx * S, ny * S);
+  const x0 = lbm.x0 || 0, nxv = nx - x0;
+  // Kastenbreite 200 -> Anteil der sichtbaren Breite; im Querformat (niedriger Kanal) etwas kleiner, damit die
+  // Versperrung ähnlich bleibt und die Beiwerte nicht von der Lage des Handys abhängen
+  const k = (s.ground ? 0.42 : 0.38) * Math.min(nxv, 1.25 * ny) / 200;
+  const cx = x0 + 0.4 * nxv;
+  g.save();
+  g.scale(S, S);
+  g.translate(cx, s.ground ? ny : ny / 2);
+  if (!s.ground) g.rotate(angleDeg * DEG);
+  g.scale(k, k);
+  g.translate(-100, s.ground ? -s.bottom : -50);
+  g.fillStyle = '#fff';
+  g.fill(new Path2D(s.path), 'nonzero');
+  g.restore();
+  const img = g.getImageData(0, 0, nx * S, ny * S).data, m = new Uint8Array(nx * ny);
+  // Bildzeile 0 ist oben, Gitterzeile 0 unten
+  let xa = nx, xb = -1, rows = 0;
+  for (let y = 0; y < ny; y++) {
+    let any = false;
+    for (let x = 0; x < nx; x++) {
+      let c = 0;
+      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) if (img[((y * S + j) * nx * S + x * S + i) * 4] > 127) c++;
+      if (c * 2 >= S * S) { m[(ny - 1 - y) * nx + x] = 1; any = true; if (x < xa) xa = x; if (x > xb) xb = x; }
+    }
+    if (any) rows++;
+  }
+  return { m, height: rows, length: Math.max(1, xb - xa + 1) };
+}
+
+// Unterkante jedes Pfads (für Bodenformen) einmal bestimmen
+function measureShapes() {
+  const cv = document.createElement('canvas'); cv.width = 200; cv.height = 110;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  for (const s of SHAPES) {
+    g.clearRect(0, 0, 200, 110); g.fillStyle = '#fff'; g.fill(new Path2D(s.path), 'nonzero');
+    const d = g.getImageData(0, 0, 200, 110).data; let bottom = 100;
+    for (let y = 109; y >= 0; y--) { let any = false; for (let x = 0; x < 200; x++) if (d[(y * 200 + x) * 4 + 3] > 127) { any = true; break; } if (any) { bottom = y + 1; break; } }
+    s.bottom = bottom;
+  }
+}
+
+function physParams() {
+  const s = App.shape, D = Math.max(App.lengthCells || 100, App.heightCells || 1);   // D: größte Abmessung in Zellen
+  const lenM = App.draw || !s ? 1 : s.len;                                              // ... und in Metern (len der Form)
+  const re = App.speed * lenM / NU_AIR;
+  let nu = U_LB * D / re;
+  // Das Gitter löst nur eine begrenzte Reynoldszahl auf (etwa 30 je Zelle der größten Abmessung, höchstens 6000);
+  // darüber hinaus bleibt die Zähigkeit größer als in Wirklichkeit. Nach einer Instabilität kommt mehr Dämpfung dazu.
+  const reMax = Math.min(30 * D, 6000);
+  const nuMin = Math.max(U_LB * D / reMax, App.nuMin);
+  // (Ein langsames Hochfahren des Winds wurde geprüft und verworfen: Der ganze Kanal müsste dann beschleunigt werden,
+  // der Einlassdruck stieg dabei auf das 15-fache des Staudrucks und schwang lange nach.)
+  // re: Reynoldszahl mit der größten Abmessung; reGrid: was das Gitter davon wirklich rechnet (gleiche Bezugslänge)
+  return { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground: !!(s && s.ground) && !App.draw, re, reGrid: U_LB * D / Math.max(nu, nuMin) };
+}
+
+function setShape(s) {
+  App.shape = s; App.draw = false;
+  $('#drawbar').hidden = true; $('#hud').hidden = false;
+  const [nx, ny] = [lbm.nx, lbm.ny];
+  const r = rasterShape(s, nx, ny, App.angle);
+  App.heightCells = r.height; App.lengthCells = r.length;
+  lbm.setMask(r.m);
+  $('#angleRow').style.visibility = s.ground ? 'hidden' : '';
+  $('#hudName').textContent = s.name + (s.info ? ' · ' + s.info : '');
+  for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === s.id ? 'true' : 'false');
+  resetForces();
+  updateHud();
+}
+
+function resetForces() { App.force = { n: 0, fx: 0, fy: 0 }; App.sinceReset = 0; }
+
+function restart() {
+  lbm.init(U_LB); App.nuMin = 0; resetForces();
+}
+
+// Gitter neu anlegen (Start, Gitterwahl, Drehen des Handys); eine gemalte Form wird auf das neue Gitter übertragen
+function rebuildGrid() {
+  const [nx, ny, x0] = gridSize();
+  const old = App.drawn && !App.draw ? { m: App.drawn, nx: lbm.nx, ny: lbm.ny, x0: lbm.x0 } : null;
+  lbm.build(nx, ny, x0);
+  App.draw = false; App.drawn = null; $('#drawbar').hidden = true; $('#hud').hidden = false;
+  if (old) {
+    const m = new Uint8Array(nx * ny);
+    for (let y = 0; y < ny; y++) for (let x = x0; x < nx; x++) {
+      const ox = old.x0 + Math.floor((x - x0) / (nx - x0) * (old.nx - old.x0)), oy = Math.floor(y / ny * old.ny);
+      if (old.m[oy * old.nx + ox]) m[y * nx + x] = 1;
+    }
+    App.drawn = m; finishDraw();
+  } else {
+    setShape(App.shape || SHAPES.find(x => x.id === 'kaefer') || SHAPES[0]);
+    restart();
+  }
+}
+
+// Beiwerte: Kraft je Schritt (Gitter) auf Staudruck · Stirnhöhe; beim Flügel auf die Flügeltiefe (wie in der Luftfahrt üblich)
+function refLength() { return App.shape && App.shape.ref === 'len' ? Math.max(App.lengthCells || 1, 1) : Math.max(App.heightCells || 1, 1); }
+function updateHud() {
+  const f = App.force, q = 0.5 * U_LB * U_LB * refLength();   // Staudruck des vollen Winds mal Bezugslänge
+  const el = $('#hudCw'), ela = $('#hudCa');
+  if (f.n > 5) {
+    const cw = f.fx / f.n / q, ca = f.fy / f.n / q;   // Kraft auf den Körper: x nach hinten, y nach oben
+    el.textContent = fmt(cw, 2); ela.textContent = fmt(ca, 2);
+    const g = $('#gauge i'); g.style.width = clamp(cw / 2.2 * 100, 0, 100) + '%';
+  } else { el.textContent = '–'; ela.textContent = '–'; }
+  const p = physParams();
+  const reTxt = (v) => v >= 1e6 ? fmt(v / 1e6, 1) + ' Mio.' : v >= 1000 ? fmt(v / 1000) + ' Tsd.' : fmt(v);
+  $('#hudRe').textContent = 'Re ' + reTxt(p.re) + (p.reGrid < p.re * 0.9 ? ' (Gitter: ' + reTxt(p.reGrid) + ')' : '');
+}
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = now - (App.lastT || now); App.lastT = now;
+  if (dt > 0) App.frameMs = lerp(App.frameMs, Math.min(dt, 200), 0.2);
+  const gl = lbm.gl, cv = lbm.canvas;
+  const dpr = Math.min(2, devicePixelRatio || 1), W = Math.round(cv.clientWidth * dpr), H = Math.round(cv.clientHeight * dpr);
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const prm = physParams();
+  if (App.running && !App.draw && !App.lost) {
+    // Schritte je Bild: so viele, dass das Bild flüssig bleibt (Ziel ~14 ms)
+    if (App.frameMs > 24) App.spf = Math.max(1, App.spf - 1); else if (App.frameMs < 15) App.spf = Math.min(40, App.spf + 1);
+    lbm.step(App.spf, prm);
+    App.sinceReset = (App.sinceReset || 0) + App.spf;
+    // Zu langsam für das normale Gitter? Nach drei Sekunden auf grob wechseln (einmalig, nur wenn nichts gewählt wurde)
+    App.stepsRun = (App.stepsRun || 0) + App.spf; App.msRun = (App.msRun || 0) + Math.min(dt, 200);
+    if (!App.gridChosen && App.grid === 'normal' && App.msRun > 3000) {
+      const rate = App.stepsRun / App.msRun * 1000;
+      App.gridChosen = true;
+      if (rate < 180) { App.grid = 'grob'; for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x.dataset.v === 'grob' ? 'true' : 'false'); rebuildGrid(); toast('Das Gitter wurde auf „grob“ gestellt, damit es auf diesem Gerät flüssig läuft.'); }
+    }
+    lbm.dye(App.spf, Math.max(6, lbm.ny / 22), 0);
+    // Kräfte ab einem halben Durchlauf mitteln; Geschwindigkeit überwachen
+    if ((App.frameCount = (App.frameCount || 0) + 1) % 3 === 0) {
+      const [fx, fy, umax] = lbm.readForce();
+      if (App.frameCount % 12 === 0) App.pRef = lerp(App.pRef || 0, lbm.readColumnRho(2), 0.5);
+      if (!(umax < 0.38)) {
+        // instabil: mehr Dämpfung, neu starten
+        App.nuMin = 1.5 * prm.nu;
+        lbm.init(U_LB); resetForces();
+        toast('Die Rechnung wurde unruhig und startet mit etwas mehr Dämpfung neu.');
+      } else if (App.sinceReset > 0.5 * lbm.nx / U_LB) {
+        const f = App.force; f.n++; f.fx += fx; f.fy += fy;
+        // gleitendes Mittel: alte Werte langsam vergessen
+        if (f.n > 60) { const k = 1 - 1 / 60; f.fx *= k; f.fy *= k; f.n = 60; }
+      }
+      updateHud();
+    }
+  }
+  if (!App.lost) lbm.draw(App.mode, prm, W, H);
+}
+
+// ---------- Selber malen ----------
+function startDraw() {
+  App.draw = true; App.shape = null;
+  App.drawn = new Uint8Array(lbm.nx * lbm.ny);
+  lbm.setMask(App.drawn); App.heightCells = 1; App.lengthCells = 100;
+  $('#drawbar').hidden = false; $('#hud').hidden = true; $('#angleRow').style.visibility = 'hidden';
+  $('#hudName').textContent = 'Selber gemalt · mit dem Finger ins Bild zeichnen';
+  for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === 'malen' ? 'true' : 'false');
+  resetForces(); updateHud();
+}
+function paintAt(clientX, clientY, last) {
+  const cv = lbm.canvas, r = cv.getBoundingClientRect();
+  const x0 = lbm.x0 || 0, gx = x0 + (clientX - r.left) / r.width * (lbm.nx - x0), gy = (1 - (clientY - r.top) / r.height) * lbm.ny;
+  const rad = Math.max(2.5, lbm.ny / 40), m = App.drawn, nx = lbm.nx, ny = lbm.ny;
+  const stamp = (x, y) => { for (let j = Math.floor(y - rad); j <= Math.ceil(y + rad); j++) for (let i = Math.floor(x - rad); i <= Math.ceil(x + rad); i++) { if (i < 0 || j < 0 || i >= nx || j >= ny) continue; if ((i + 0.5 - x) ** 2 + (j + 0.5 - y) ** 2 <= rad * rad) m[j * nx + i] = 1; } };
+  if (last) { const n = Math.ceil(Math.hypot(gx - last[0], gy - last[1]) / (rad * 0.5)) + 1; for (let k = 0; k <= n; k++) stamp(lerp(last[0], gx, k / n), lerp(last[1], gy, k / n)); } else stamp(gx, gy);
+  return [gx, gy];
+}
+function finishDraw() {
+  // Stirnhöhe und Länge aus der Maske
+  const m = App.drawn, nx = lbm.nx, ny = lbm.ny; let rows = 0, x0 = nx, x1 = -1;
+  for (let y = 0; y < ny; y++) { let any = false; for (let x = 0; x < nx; x++) if (m[y * nx + x]) { any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } if (any) rows++; }
+  App.heightCells = Math.max(rows, 1); App.lengthCells = Math.max(x1 - x0 + 1, 10);
+  lbm.setMask(m); App.draw = false; $('#drawbar').hidden = true; $('#hud').hidden = false;
+  $('#hudName').textContent = 'Selber gemalt';
+  resetForces(); restart();
+}
+
+let toastTimer = 0;
+function toast(t) { const el = $('#toast'); el.textContent = t; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 4000); }
+
+function buildGallery() {
+  const g = $('#gallery');
+  let group = '';
+  for (const s of SHAPES) {
+    if (s.group !== group) { group = s.group; const h = document.createElement('span'); h.className = 'grp'; h.textContent = group; g.appendChild(h); }
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.id = s.id; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = `<svg viewBox="-4 -4 208 108" aria-hidden="true"><path d="${s.path}"/></svg><span>${s.name}</span>`;
+    b.addEventListener('click', () => { setShape(s); restart(); });
+    g.appendChild(b);
+  }
+  const b = document.createElement('button'); b.type = 'button'; b.dataset.id = 'malen'; b.className = 'malen'; b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21l3.8-1 11-11-2.8-2.8-11 11L3 21zm13.7-16.5 2.8 2.8 1.6-1.6a1 1 0 0 0 0-1.4l-1.4-1.4a1 1 0 0 0-1.4 0l-1.6 1.6z"/></svg><span>Selber malen</span>`;
+  b.addEventListener('click', startDraw);
+  g.appendChild(b);
+}
+
+function setupUI() {
+  buildGallery();
+  const sp = $('#speed'), spv = $('#speedV');
+  sp.addEventListener('input', () => { App.speed = +sp.value; spv.textContent = fmt(App.speed) + ' m/s'; updateHud(); });
+  const an = $('#angle'), anv = $('#angleV');
+  an.addEventListener('input', () => {
+    App.angle = +an.value; anv.textContent = fmt(App.angle) + '°';
+    if (App.shape) {
+      const r = rasterShape(App.shape, lbm.nx, lbm.ny, App.angle); App.heightCells = r.height; App.lengthCells = r.length; lbm.setMask(r.m); resetForces();
+      lbm.sinceInit = Math.min(lbm.sinceInit, Math.round(RAMP_STEPS * 0.5));   // Körper kurz wieder etwas durchlässig: kein Druckstoß
+    }
+  });
+  const mb = $('#modeBtn');
+  const showMode = () => { mb.textContent = MODES[App.mode][0]; $('#legend').textContent = MODES[App.mode][1]; };
+  mb.addEventListener('click', () => { App.mode = (App.mode + 1) % MODES.length; showMode(); }); showMode();
+  $('#playBtn').addEventListener('click', () => { App.running = !App.running; $('#playBtn').textContent = App.running ? '❚❚' : '▶'; $('#playBtn').setAttribute('aria-label', App.running ? 'Pause' : 'Weiter'); });
+  $('#resetBtn').addEventListener('click', () => { restart(); });
+  $('#helpBtn').addEventListener('click', () => { const d = $('#help'); d.showModal(); d.scrollTop = 0; });
+  $('#help').addEventListener('click', (e) => { if (e.target === $('#help')) $('#help').close(); });
+  // 3D als Extra: Kann das Gerät WebGPU, öffnet der Knopf die große Fassung mit einem passenden 3D-Modell
+  if (navigator.gpu) {
+    const to3d = { kaefer: 'pkw', sportwagen: 'pkw', wohnmobil: 'pkw', lkw: 'lkw', bus: 'lkw', zug: 'lkw', fluegel: 'fluegel', flugzeug: 'fluegel', papierflieger: 'fluegel', drachen: 'fluegel', moewe: 'fluegel', haus: 'haus', kirche: 'haus', turm: 'schornstein', rakete: 'schornstein', flasche: 'schornstein', zeppelin: 'schornstein' };
+    const b = $('#btn3d'); b.hidden = false;
+    b.addEventListener('click', () => { const id = App.shape && to3d[App.shape.id] || 'kugel'; window.open('https://fbw159.github.io/windkanal/?modell=' + id, '_blank', 'noopener'); });
+  }
+  $('#helpClose').addEventListener('click', () => $('#help').close());
+  $('#drawClear').addEventListener('click', () => { App.drawn.fill(0); lbm.setMask(App.drawn); });
+  $('#drawDone').addEventListener('click', finishDraw);
+  for (const b of document.querySelectorAll('#gridSeg button')) b.addEventListener('click', () => { App.grid = b.dataset.v; App.gridChosen = true; for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); rebuildGrid(); });
+  // Malen mit Finger oder Maus
+  const cv = $('#gl'); let last = null, drawing = false;
+  cv.addEventListener('pointerdown', (e) => { if (!App.draw) return; drawing = true; cv.setPointerCapture(e.pointerId); last = paintAt(e.clientX, e.clientY, null); lbm.setMask(App.drawn); e.preventDefault(); });
+  cv.addEventListener('pointermove', (e) => { if (!App.draw || !drawing) return; last = paintAt(e.clientX, e.clientY, last); lbm.setMask(App.drawn); e.preventDefault(); });
+  const up = () => { drawing = false; last = null; };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('touchmove', (e) => { if (App.draw) e.preventDefault(); }, { passive: false });
+  // bei Drehung oder Größenänderung Gitter neu
+  let rs = 0;
+  const onResize = () => { clearTimeout(rs); rs = setTimeout(() => { const [nx, ny] = gridSize(); if (nx !== lbm.nx || Math.abs(ny - lbm.ny) > 4) rebuildGrid(); }, 300); };
+  window.addEventListener('resize', onResize);
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe($('#stage'));
+  // Verlust des WebGL-Kontexts (Safari gibt ihn im Hintergrund frei): alles neu anlegen
+  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); App.lost = true; toast('Die Grafikkarte wurde freigegeben, einen Moment …'); });
+  cv.addEventListener('webglcontextrestored', () => { try { lbm = new Lbm(cv); App.lost = false; rebuildGrid(); } catch (err) { $('#fatal').hidden = false; $('#fatalText').textContent = err.message; } });
+}
+
+// Prüfschnittstelle (für automatische Tests)
+window.WH = { App, get lbm() { return lbm; }, physParams, setShape: (id) => { const s = SHAPES.find(x => x.id === id); if (s) { setShape(s); restart(); } }, step: (n) => lbm.step(n, physParams()), force: () => lbm.readForce(), SHAPES };
+
+function main() {
+  try {
+    lbm = new Lbm($('#gl'));
+  } catch (e) {
+    $('#fatal').hidden = false; $('#fatalText').textContent = e.message; return;
+  }
+  measureShapes();
+  setupUI();
+  if (GRIDS[QS.get('gitter')]) {
+    App.grid = QS.get('gitter'); App.gridChosen = true;
+    for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x.dataset.v === App.grid ? 'true' : 'false');
+  }
+  App.shape = SHAPES.find(x => x.id === QS.get('form')) || SHAPES.find(x => x.id === 'kaefer');
+  rebuildGrid();
+  requestAnimationFrame(frame);
+}
+main();
+
+</script>
+<script>
+// Ohne Netz nutzbar (nur über https oder localhost möglich)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

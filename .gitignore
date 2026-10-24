@@ -1,0 +1,7 @@
+# Zugangsdaten nie ins Repo
+github-token.txt
+*token*.txt
+# Testbilder und Zwischenergebnisse
+test/*.png
+test/*.txt
+__pycache__/

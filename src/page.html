@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b1016">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Taschen-Windkanal</title>
+<meta name="description" content="Windkanal fürs Handy: Strömung um Autos, Tiere, Flugzeuge und eigene Formen, gerechnet auf der Grafikkarte des Handys.">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+<header id="top">
+  <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="17" cy="20" r="6.5" fill="currentColor" opacity=".9"/>
+    <path d="M2 11c8 0 11 1.5 15 2.6S28 15 38 13M2 29c8 0 11-1.5 15-2.6S28 25 38 27M2 20h6.5M27 20c3 0 6-1.2 11-1.2" fill="none" stroke="var(--wind)" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
+  <h1>Taschen-Windkanal</h1>
+  <span id="legend" class="legend">Rauchfäden</span>
+  <button id="btn3d" class="iconbtn" type="button" aria-label="In 3D rechnen (große Fassung)" title="Dieses Handy kann WebGPU: die große Fassung mit 3D-Modellen öffnen" hidden>3D</button>
+  <button id="helpBtn" class="iconbtn" type="button" aria-label="Hilfe">?</button>
+</header>
+
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <div id="hud">
+    <div class="hudrow"><span class="lbl">Luftwiderstand c<sub>W</sub></span><b id="hudCw">–</b><span class="lbl">Auftrieb c<sub>A</sub></span><b id="hudCa" class="small">–</b></div>
+    <div id="gauge" aria-hidden="true"><i></i></div>
+    <div class="hudrow sub"><span id="hudName">–</span><span id="hudRe"></span></div>
+  </div>
+  <div id="drawbar" hidden>
+    <span>Mit dem Finger ins Bild malen</span>
+    <button id="drawClear" type="button" class="ghost">Löschen</button>
+    <button id="drawDone" type="button" class="primary">Fertig</button>
+  </div>
+  <div id="toast" role="status"></div>
+</div>
+
+<div id="gallery" aria-label="Formen"></div>
+
+<div id="ctl">
+  <div class="row">
+    <label for="speed">Wind</label>
+    <input id="speed" type="range" min="1" max="60" step="1" value="30">
+    <span id="speedV" class="val">30 m/s</span>
+  </div>
+  <div class="row" id="angleRow">
+    <label for="angle">Neigung</label>
+    <input id="angle" type="range" min="-30" max="30" step="1" value="0">
+    <span id="angleV" class="val">0°</span>
+  </div>
+  <div class="btns">
+    <button id="modeBtn" type="button" class="wide" aria-label="Darstellung wechseln">Rauch</button>
+    <button id="playBtn" type="button" aria-label="Pause">❚❚</button>
+    <button id="resetBtn" type="button" aria-label="Neu starten">↺</button>
+  </div>
+</div>
+
+<dialog id="help">
+  <h2 tabindex="-1" autofocus>Taschen-Windkanal</h2>
+  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig (Tropfen ≈ 0,1), groß heißt bremsend (Platte quer ≈ 2). Der Balken zeigt dasselbe als Maß.</p>
+  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
+  <p>Wind: 1 bis 60 m/s. Bei frei schwebenden Formen lässt sich die Neigung einstellen. „Selber malen“: eigene Form mit dem Finger zeichnen, dann „Fertig“. ↺ startet die Rechnung neu.</p>
+  <div class="row"><span>Gitter</span>
+    <div id="gridSeg" class="seg" role="group"><button type="button" data-v="grob" aria-pressed="false">grob</button><button type="button" data-v="normal" aria-pressed="true">normal</button><button type="button" data-v="fein" aria-pressed="false">fein</button></div>
+  </div>
+  <p class="muted">Die große Fassung mit 3D-Modellen (WebGPU, für den PC; auf neuen Handys über den Knopf „3D“): <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
+  <button id="helpClose" type="button" class="primary">Schließen</button>
+</dialog>
+
+<div id="fatal" hidden>
+  <h2>Das klappt hier leider nicht</h2>
+  <p id="fatalText"></p>
+</div>
+
+<script>
+/*__JS__*/
+</script>
+<script>
+// Ohne Netz nutzbar (nur über https oder localhost möglich)
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
