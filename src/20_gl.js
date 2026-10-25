@@ -34,6 +34,7 @@ uniform int ground;     // 1: Boden unten haftet (Fahrzeuge, Gebäude), 0: glatt
 uniform float spongeIn; // Länge der Dämpfungszone am Einlass (Zellen)
 uniform float spongeOut;// ... am Auslass
 uniform float spongeWall;// ... an Decke und Boden
+uniform float sigmaG;   // schwache Dichtedämpfung im ganzen Kanal (je Schritt)
 uniform float beta;     // Dichtheit des Körpers beim Start (0 durchlässig … 1 fest)
 layout(location = 0) out vec4 o0;
 layout(location = 1) out vec4 o1;
@@ -122,7 +123,7 @@ void main() {
   float om1 = (1.0 - 1.0 / tau) * (1.0 - 0.9 * sOut * sOut);
   // Lange Druckwellen (Kanallänge) kann keine Zone schlucken; sie werden überall ganz schwach gedämpft (Zeitmaß 500 Schritte),
   // das verfälscht die Strömung um weniger als ein Prozent
-  float sigma = max(max(0.1 * sIn * sIn, 0.1 * sOut * sOut), 0.3 * sWall * sWall) + 0.002;
+  float sigma = max(max(0.1 * sIn * sIn, 0.1 * sOut * sOut), 0.3 * sWall * sWall) + sigmaG;
   float rhoT = 1.0;
   vec2 uT = sIn > 0.0 ? mix(u, vec2(uin, 0.0), sIn * sIn) : u;
   float g[9];
@@ -346,7 +347,8 @@ class Lbm {
         gl.uniform2i(u.N, this.nx, this.ny);
         gl.uniform1f(u.tau0, 0.5 + 3 * prm.nu); gl.uniform1f(u.uin, prm.uin); gl.uniform1f(u.csm, prm.csm); gl.uniform1i(u.ground, prm.ground ? 1 : 0);
         // Dämpfungszonen: der ganze verdeckte Vorlauf, 15 % der Länge vor dem Auslass, 12 % der Höhe an Decke und Boden
-        gl.uniform1f(u.spongeIn, Math.max(8, (this.x0 || 0) - 2)); gl.uniform1f(u.spongeOut, Math.max(12, 0.15 * this.nx)); gl.uniform1f(u.spongeWall, Math.max(8, 0.12 * this.ny));
+        gl.uniform1f(u.spongeIn, Math.max(8, (this.x0 || 0) - 2)); gl.uniform1f(u.spongeOut, Math.max(12, 0.15 * this.nx)); gl.uniform1f(u.spongeWall, Math.max(2, (prm.wallFrac !== undefined ? prm.wallFrac : 0.12) * this.ny));
+        gl.uniform1f(u.sigmaG, prm.sigmaG !== undefined ? prm.sigmaG : 0.002);
         gl.uniform1f(u.beta, beta);
       });
       this.parity = 1 - this.parity;

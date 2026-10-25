@@ -13,7 +13,7 @@ async def main():
         pg = await b.new_page(viewport={"width": 390, "height": 844}, device_scale_factor=1)
         logs = []
         pg.on("pageerror", lambda e: logs.append(f"[pageerror] {e}"))
-        await pg.goto(f'{URL}?form={shape}&gitter={grid}')
+        await pg.goto(f'{URL}?form={shape}&gitter={grid}' + (f'&remax={int(recap)}' if recap else '') + __import__('os').environ.get('WHQS', ''))
         await pg.wait_for_timeout(800)
         await pg.evaluate(f"App.running = false; App.speed = {speed}; WH.setShape('{shape}')")
         if recap: await pg.evaluate(f"App.nuMin = 0.1 * App.lengthCells / {recap}")

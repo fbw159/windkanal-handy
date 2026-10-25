@@ -22,7 +22,7 @@ Ein Fingertipp, und der Wind weht um einen Käfer, einen Hai, eine Rakete oder e
 - Rauch: mitgeführter Farbstoff, am Einlass in Fäden eingespeist.
 - Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper. Sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte: In der Ebene fehlt die dritte Richtung, in der die Luft ausweichen kann, und der Kanal ist schmal.
 
-Prüfung: Zylinder bei Re 100, Versperrung 16 % (Hochformat) → c<sub>W</sub> 1,46 (Messwert frei 1,33; im engen Kanal etwas höher). Genaueres steht im Projektordner.
+Prüfung (grobes Gitter, ohne Grafikkarte gerechnet, deshalb nur bis 3000 Schritte): Zylinder bei Re 100, Versperrung 16 % → c<sub>W</sub> 1,46 (Messwert frei 1,33; im engen Kanal etwas höher). Bei der Reynoldszahl des Gitters (1000–3000): Kreis ≈ 1,0, Quadrat ≈ 1,9, Platte quer ≈ 1,4 (noch fallend), Tropfen ≈ 0,8–1,0, Käfer ≈ 1,5 mit Auftrieb ≈ 1,6, Tragflügel 0° (auf die Tiefe bezogen) 0,09. Zweidimensionale Rechnungen mit laminarer Grenzschicht geben für schlanke Körper zu viel Widerstand (Ablösung an der dicksten Stelle, zusammenhängende Wirbel) und für stumpfe eher zu wenig; die Rangfolge Platte > Quadrat > Kreis stimmt, der Tropfen bleibt hinter seinem Ruf. Die Dämpfung im Kanal ändert die Beiwerte nicht (Kreis mit/ohne: 1,07/1,10).
 
 ## Aufbau
 

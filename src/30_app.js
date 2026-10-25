@@ -70,12 +70,13 @@ function physParams() {
   let nu = U_LB * D / re;
   // Das Gitter löst nur eine begrenzte Reynoldszahl auf (etwa 30 je Zelle der größten Abmessung, höchstens 6000);
   // darüber hinaus bleibt die Zähigkeit größer als in Wirklichkeit. Nach einer Instabilität kommt mehr Dämpfung dazu.
-  const reMax = Math.min(30 * D, 6000);
+  const reMax = QS.has('remax') ? +QS.get('remax') : Math.min(30 * D, 6000);   // ?remax= nur zum Prüfen
   const nuMin = Math.max(U_LB * D / reMax, App.nuMin);
   // (Ein langsames Hochfahren des Winds wurde geprüft und verworfen: Der ganze Kanal müsste dann beschleunigt werden,
   // der Einlassdruck stieg dabei auf das 15-fache des Staudrucks und schwang lange nach.)
   // re: Reynoldszahl mit der größten Abmessung; reGrid: was das Gitter davon wirklich rechnet (gleiche Bezugslänge)
-  return { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground: !!(s && s.ground) && !App.draw, re, reGrid: U_LB * D / Math.max(nu, nuMin) };
+  return { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground: !!(s && s.ground) && !App.draw, re, reGrid: U_LB * D / Math.max(nu, nuMin),
+    sigmaG: QS.has('sg') ? +QS.get('sg') : undefined, wallFrac: QS.has('sw') ? +QS.get('sw') : undefined };   // sg, sw: nur zum Prüfen der Dämpfung
 }
 
 function setShape(s) {
