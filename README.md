@@ -32,7 +32,20 @@ Fälle mit bekannter Lösung (`test/bench.py`, laminar, ohne Wirbelviskosität, 
 | Zylinder im Kanal, Re 20, stationär (Schäfer/Turek 2D-1, 20 Zellen Durchmesser) | c<sub>W</sub> 5,74, c<sub>A</sub> 0,015, Δp 2,915 | 5,57–5,59 / 0,0104–0,0110 / 2,93–2,94 |
 | Zylinder im Kanal, Re 100, Wirbelstraße (Schäfer/Turek 2D-2) | c<sub>W,max</sub> 3,29, c<sub>A,max</sub> 0,86, Strouhal 0,297 | 3,22–3,24 / 0,99–1,01 / 0,295–0,305 |
 
-Beispielformen (grobes Gitter, 3000 Schritte, Mittel über das letzte Drittel): __BEISPIELE__
+Beispielformen bei 30 m/s (turbulentes Wandgesetz, grobes Gitter, 3000 Schritte, Mittel über das letzte Drittel; Beiwerte auf die Stirnhöhe, Flügel auf die Tiefe):
+
+| Form | c<sub>W</sub> | c<sub>A</sub> | zum Vergleich (Messungen, meist 3D) |
+|---|---|---|---|
+| Tropfen | 0,19 | 0,00 | Stromlinienkörper 0,04–0,1 |
+| Kreis (Zylinder, Re 2 Mio.) | 0,29 | 0,00 | überkritisch 0,2–0,4; laminar (bei 1 m/s) ≈ 1,0 gegen 1,2 |
+| Quadrat | 1,4 | 0,00 | 2,0–2,2 (2D) |
+| Platte quer | 1,5 (fällt noch) | 0,00 | 2,0 (2D), 1,2 (3D) |
+| Käfer | 0,9 | 4,5 | Käfer 0,48; der Auftrieb ist in der Ebene stark übertrieben (die Luft kann nicht seitlich ausweichen) |
+| Haus | 1,7 | 1,1 | – |
+| Hai | 1,1 | −1,0 | Flossen und Schwanz lösen ab |
+| Tragflügel 0° (auf die Tiefe) | 0,00 | 0,03 | 0,01 / 0,25 |
+
+Ohne Wandgesetz (laminar, wie bei kleinen Dingen oder schwachem Wind) löst die Grenzschicht an jeder Rundung ab: Tropfen ≈ 1,0, Kreis ≈ 1,0, Käfer ≈ 1,5. Der Unterschied zwischen beiden Zuständen ist die Widerstandskrise des Zylinders, die man am Windregler sehen kann.
 
 ## Aufbau
 

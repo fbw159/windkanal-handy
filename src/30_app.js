@@ -168,7 +168,8 @@ function updateHud() {
   const el = $('#hudCw'), ela = $('#hudCa');
   if (f.n > 5) {
     const cw = f.fx / f.n / q, ca = f.fy / f.n / q;   // Kraft auf den Körper: x nach hinten, y nach oben
-    el.textContent = fmt(cw, 2); ela.textContent = fmt(ca, 2);
+    const dec = App.shape && App.shape.ref === 'len' ? 3 : 2;   // Flügel (auf die Tiefe bezogen): kleine Werte, drei Stellen
+    el.textContent = fmt(cw, dec); ela.textContent = fmt(ca, dec);
     const g = $('#gauge i'); g.style.width = clamp(cw / 2.2 * 100, 0, 100) + '%';
   } else { el.textContent = '–'; ela.textContent = '–'; }
   const p = physParams();
