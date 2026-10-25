@@ -13,15 +13,16 @@ async def main():
         pg = await b.new_page(viewport={"width": vw, "height": vh}, device_scale_factor=2, is_mobile=True, has_touch=True)
         logs = []
         pg.on("pageerror", lambda e: logs.append(f"[pageerror] {e}"))
-        await pg.goto(f'{URL}?form={shape}&gitter={grid}')
+        import os
+        await pg.goto(f'{URL}?form={shape}&gitter={grid}' + os.environ.get('WHQS', ''))
         await pg.wait_for_timeout(800)
         await pg.evaluate("App.running = false")
         for k in range(steps // 50):
-            await pg.evaluate("(() => { for (let j = 0; j < 5; j++) { WH.step(10); lbm.dye(10, Math.max(6, Math.round(lbm.ny / 22)), 0); } })()")
+            await pg.evaluate("(() => { for (let j = 0; j < 5; j++) { WH.step(10); lbm.dye(10, Math.max(6, Math.round(lbm.ny / 22)), 0); } App.pRef = lbm.readColumnRho(2); })()")
         f = await pg.evaluate("WH.force()")
         await pg.evaluate("App.pRef = lbm.readColumnRho(2); const fr = lbm.readForce(); App.force = { n: 10, fx: fr[0] * 10, fy: fr[1] * 10, hist: [] }; updateHud();")
         H = await pg.evaluate("App.heightCells")
-        print(shape, 'cW', round(f[0] / (0.5 * 0.01 * H), 3), 'umax/U', round(f[2] / 0.1, 2))
+        U = await pg.evaluate("U_LB"); print(shape, 'cW', round(f[0] / (0.5 * U * U * H), 3), 'umax/U', round(f[2] / U, 2))
         for mode, name in enumerate(['rauch', 'tempo', 'druck', 'wirbel']):
             await pg.evaluate(f"App.mode = {mode}; document.querySelector('#modeBtn').textContent = {['\"Rauch\"','\"Tempo\"','\"Druck\"','\"Wirbel\"'][mode]}; lbm.draw({mode}, physParams(), lbm.canvas.width, lbm.canvas.height)")
             await pg.wait_for_timeout(100)

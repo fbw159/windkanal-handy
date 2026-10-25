@@ -38,7 +38,6 @@ button { cursor: pointer; }
 .legend { color: var(--muted); font-size: 13px; white-space: nowrap; }
 @media (max-width: 430px) { .legend { display: none; } }
 .iconbtn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2); display: grid; place-items: center; font-weight: 600; padding: 0; }
-#btn3d { font-size: 12px; color: var(--wind); border-color: var(--wind); }
 
 #stage { position: relative; flex: 1 1 auto; min-height: 150px; max-height: calc(100vw / 1.05); background: #0d141b; }
 #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
@@ -114,7 +113,6 @@ dialog #helpClose { margin-top: 8px; width: 100%; height: 44px; }
   </svg>
   <h1>Taschen-Windkanal</h1>
   <span id="legend" class="legend">Rauchfäden</span>
-  <button id="btn3d" class="iconbtn" type="button" aria-label="In 3D rechnen (große Fassung)" title="Dieses Handy kann WebGPU: die große Fassung mit 3D-Modellen öffnen" hidden>3D</button>
   <button id="helpBtn" class="iconbtn" type="button" aria-label="Hilfe">?</button>
 </header>
 
@@ -155,13 +153,13 @@ dialog #helpClose { margin-top: 8px; width: 100%; height: 44px; }
 
 <dialog id="help">
   <h2 tabindex="-1" autofocus>Taschen-Windkanal</h2>
-  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig, groß heißt bremsend (Platte quer um 1,5 bis 2). Der Balken zeigt dasselbe als Maß. Schlanke Formen wie der Tropfen kommen hier auf höhere Werte als in Wirklichkeit, weil die Strömung in der Ebene und bei der Reynoldszahl des Gitters noch an der dicksten Stelle ablöst.</p>
-  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
+  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig (Tropfen), groß heißt bremsend (Platte quer um 1,5 bis 2). Der Balken zeigt dasselbe als Maß.</p>
+  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky, Wand an der echten Stelle des Umrisses. Bei hoher Reynoldszahl (große Dinge, schneller Wind: „turbulent“) sorgt ein Wandgesetz dafür, dass die Strömung an Rundungen anliegt wie in Wirklichkeit und erst dort ablöst, wo sich die Oberfläche stark vom Wind wegdreht; kleine Dinge bleiben „laminar“ und lösen früh ab. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
   <p>Wind: 1 bis 60 m/s. Bei frei schwebenden Formen lässt sich die Neigung einstellen. „Selber malen“: eigene Form mit dem Finger zeichnen, dann „Fertig“. ↺ startet die Rechnung neu.</p>
   <div class="row"><span>Gitter</span>
     <div id="gridSeg" class="seg" role="group"><button type="button" data-v="grob" aria-pressed="false">grob</button><button type="button" data-v="normal" aria-pressed="true">normal</button><button type="button" data-v="fein" aria-pressed="false">fein</button></div>
   </div>
-  <p class="muted">Die große Fassung mit 3D-Modellen (WebGPU, für den PC; auf neuen Handys über den Knopf „3D“): <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
+  <p class="muted">Die große Fassung mit 3D-Modellen für den PC: <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
   <button id="helpClose" type="button" class="primary">Schließen</button>
 </dialog>
 
@@ -183,8 +181,11 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const DEG = Math.PI / 180;
 const NU_AIR = 1.5e-5;        // Zähigkeit der Luft in m²/s
 const RHO_AIR = 1.204;        // Dichte der Luft in kg/m³
-const U_LB = 0.1;             // Gitterwind (Zellen je Schritt)
+const U_LB = 0.08;            // Gitterwind (Zellen je Schritt); Spitzen bis 4·U bleiben so unter 0,35
 const RAMP_STEPS = 400;       // sanfter Start: so viele Schritte, bis der Körper ganz dicht ist
+const WALL_LAW = true;        // Wandgesetz (mitbewegte Wand) bei turbulenter Strömung
+const SEP_TURN = 0.5;         // sin 30°: dreht sich die Wand stärker vom Wind weg, löst die turbulente Grenzschicht ab
+const S_MAX = 0.95;           // größter Gleitanteil der Wand im Wandgesetz
 const QS = new URLSearchParams(location.search);
 
 // Zahl mit Komma, feste Nachkommastellen
@@ -237,7 +238,7 @@ const SHAPES = [
   { id: 'kreis', name: 'Kreis', group: 'Grundformen', len: 1, path: circ(100, 50, 40) },
   { id: 'quadrat', name: 'Quadrat', group: 'Grundformen', len: 1, path: rect(60, 10, 80, 80) },
   { id: 'dreieck', name: 'Dreieck', group: 'Grundformen', len: 1, path: poly([[45, 50], [150, 8], [150, 92]]) },
-  { id: 'tropfen', name: 'Tropfen', group: 'Grundformen', len: 1, info: 'die windschnittigste Form', path: 'M22 50C22 28 42 16 66 16C110 16 150 40 186 50C150 60 110 84 66 84C42 84 22 72 22 50Z' },
+  { id: 'tropfen', name: 'Tropfen', group: 'Grundformen', len: 1, info: 'die windschnittigste Form', path: 'M22 50C22 28 40 16 64 16C96 16 140 32 186 50C140 68 96 84 64 84C40 84 22 72 22 50Z' },   // Schwanz höchstens 21° steil
   { id: 'platte_quer', name: 'Platte quer', group: 'Grundformen', len: 1, path: rect(96, 10, 8, 80) },
   { id: 'platte_laengs', name: 'Platte längs', group: 'Grundformen', len: 2, path: rect(20, 47, 160, 6) },
   { id: 'schale', name: 'Schale', group: 'Grundformen', len: 1, info: 'offen gegen den Wind, wie ein Fallschirm', path: 'M100 8A42 42 0 0 1 100 92L90 92A34 34 0 0 0 90 8Z' },
@@ -333,15 +334,23 @@ float feq(int i, float rho, vec2 u) {
 
 const FS_STEP = D2Q9_HEAD + `
 uniform sampler2D t0; uniform sampler2D t1; uniform sampler2D t2; uniform sampler2D mask;
+uniform sampler2D q1; uniform sampler2D q2;   // Wandlage je Verbindung (Richtungen 1–4 bzw. 5–8), 0 = unbekannt (halbe Zelle)
 uniform ivec2 N;
 uniform float tau0;     // Relaxationszeit aus der Zähigkeit
 uniform float uin;      // Einlassgeschwindigkeit (Gitter)
 uniform float csm;      // Smagorinsky-Konstante
-uniform int ground;     // 1: Boden unten haftet (Fahrzeuge, Gebäude), 0: glatte Wand
+uniform int ground;     // 0: frei (glatte Wände oben und unten), 1: Boden haftet (Gebäude), 2: beide Wände haften (Prüffälle),
+                        // 3: Boden glatt, aber Körper steht darauf (Fahrzeuge: die Straße bewegt sich mit der Luft)
+uniform float wturb;    // Anteil turbulent (0 laminar … 1 turbulent) nach der wirklichen Reynoldszahl
+uniform float nuPhys;   // Zähigkeit der Luft in Gittereinheiten (für das Wandgesetz; die Rechnung selbst nutzt tau0)
+uniform float sepTurn;  // sin des Wegdrehwinkels der Wand vom Wind, ab dem die turbulente Grenzschicht ablöst
+uniform float sMax;     // größter Gleitanteil der Wand
+uniform int inletShape; // 0: Wind überall gleich, 1: Parabel zwischen haftenden Wänden (Prüffall Schäfer/Turek)
 uniform float spongeIn; // Länge der Dämpfungszone am Einlass (Zellen)
 uniform float spongeOut;// ... am Auslass
 uniform float spongeWall;// ... an Decke und Boden
 uniform float sigmaG;   // schwache Dichtedämpfung im ganzen Kanal (je Schritt)
+uniform float rhoRef;   // mittlere Dichteabweichung des Kanals (Ziel der schwachen Dämpfung)
 uniform float beta;     // Dichtheit des Körpers beim Start (0 durchlässig … 1 fest)
 layout(location = 0) out vec4 o0;
 layout(location = 1) out vec4 o1;
@@ -353,6 +362,15 @@ float fetchF(int i, ivec2 p) {
   return texelFetch(t2, p, 0).x;
 }
 bool isSolid(ivec2 p) { return texelFetch(mask, p, 0).r > 0.5; }
+bool fluidAt(ivec2 p) { return p.x >= 0 && p.x < N.x && p.y >= 0 && p.y < N.y && !isSolid(p); }
+bool bodyAt(ivec2 p) { return p.x >= 0 && p.x < N.x && p.y >= 0 && p.y < N.y && isSolid(p); }
+// Anteil q der Verbindung von p in Richtung j, an dem die Wand liegt (0 … 1; 0,5 = halbe Zelle)
+float qOf(int j, ivec2 p) {
+  vec4 a = j < 5 ? texelFetch(q1, p, 0) : texelFetch(q2, p, 0);
+  int k = j < 5 ? j - 1 : j - 5;
+  float v = a[k];
+  return v > 0.0 ? v : 0.5;
+}
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   bool solidP = isSolid(p);
@@ -364,13 +382,55 @@ void main() {
   // Sanfter Start (beta < 1): Der Körper ist zunächst durchlässig und wird über einige hundert Schritte dicht
   // (teilweiser Rückprall in den Körperzellen). Ein schlagartig auftauchender Körper würde einen Druckstoß
   // vom Zehnfachen des Staudrucks auslösen, der lange durch den Kanal liefe.
-  float f[9];
+  float f[9], fIn[9];
   vec2 F = vec2(0.0);
-  int wallBits = 0;
+  int wallBits = 0, mirBits = 0;   // Verbindungen mit Rückprall (Körper, haftender Boden) bzw. Spiegelung (glatte Wand)
+  // Wandgesetz bei turbulenter Strömung: Das Gitter kann die dünne turbulente Grenzschicht nicht auflösen; eine haftende
+  // Wand bremst die Wandzelle dann viel stärker, als die wirkliche Wandschubspannung (logarithmisches Gesetz) es täte.
+  // Deshalb bewegt sich die Wand rechnerisch mit dem Anteil s der tangentialen Zellgeschwindigkeit mit, so dass der
+  // Impulsaustausch gerade die Schubspannung des Wandgesetzes ergibt. s = 0 heißt haftende Wand (laminar).
+  vec2 uWall = vec2(0.0);
+  float rhoPrev = 1.0;
+  if (wturb > 0.0 && !solidP) {
+    vec4 prev = texelFetch(t2, p, 0); rhoPrev = 1.0 + prev.y;
+    float dw = texelFetch(mask, p, 0).g * 255.0 / 16.0;                      // Wandabstand (Zellen)
+    if (dw < 1.5) {
+      // Wandnormale aus dem Abstandsfeld (zeigt von der Wand weg)
+      vec2 gd = vec2(texelFetch(mask, min(p + ivec2(1, 0), N - 1), 0).g - texelFetch(mask, max(p - ivec2(1, 0), ivec2(0)), 0).g,
+                     texelFetch(mask, min(p + ivec2(0, 1), N - 1), 0).g - texelFetch(mask, max(p - ivec2(0, 1), ivec2(0)), 0).g);
+      // Nur bei klarer Wandnormale (nicht in Ecken, nicht am Radaufstand) und nicht dicht über dem Boden
+      bool clear = length(gd) > 0.5 * 16.0 / 255.0 && !((ground == 1 || ground == 3) && p.y < 3);
+      vec2 nrm = clear ? normalize(gd) : vec2(0.0);
+      vec2 ut = prev.zw - nrm * dot(prev.zw, nrm);                           // tangentialer Anteil
+      float utm = length(ut);
+      if (clear && utm > 1e-6 && utm < 2.5 * uin) {
+        // u_tau aus dem logarithmischen Gesetz u/u_tau = ln(E y+)/kappa, y+ = u_tau d/nu (drei Fixpunktschritte)
+        float d = max(dw, 0.25), utau = 0.05 * utm;
+        for (int k = 0; k < 3; k++) { float yp = max(utau * d / nuPhys, 11.6); utau = 0.41 * utm / log(9.8 * yp); }
+        float yp = utau * d / nuPhys;
+        if (yp > 11.6) {
+          float tauWall = utau * utau, tauLam = (tau0 - 0.5) / 3.0 * utm / d;   // Soll (Wandgesetz) und Ist (haftend, Gitterzähigkeit)
+          float s = clamp(1.0 - tauWall / max(tauLam, 1e-12), 0.0, sMax) * wturb;
+          // Ablösung: Eine turbulente Grenzschicht folgt der Wand, solange sich die Oberfläche nur mäßig vom Wind
+          // wegdreht; dreht sie sich stärker als etwa 30° weg (Zylinder ab ~120°, steiles Heck, Kante), löst sie ab,
+          // und die Wand wird dort wieder haftend (wie beim Ahmed-Körper: Heckschräge über 30° löst ab). Maß: Anteil der
+          // Wandnormale in Windrichtung (sin des Wegdrehwinkels), Übergang zwischen sin 22° und sin 30°.
+          // Der Tropfenschwanz (≤ 21°) bleibt anliegend bis zur Spitze.
+          float turn = nrm.x;   // Wind weht in +x
+          s *= clamp((sepTurn - turn) / 0.12, 0.0, 1.0);
+          uWall = s * ut;
+          float uwm = length(uWall); if (uwm > 1.2 * uin) uWall *= 1.2 * uin / uwm;   // Deckel: keine negativen Verteilungen
+        }
+      }
+    }
+  }
+  // Einlassgeschwindigkeit (auch Sollwert der Einlass-Dämpfungszone)
+  float yy = (float(p.y) + 0.5) / float(N.y);   // Wände bei y = 0 und y = N.y (halbe Zelle außerhalb der Randzellmitten)
+  vec2 uInlet = vec2(uin * (inletShape == 1 ? 4.0 * yy * (1.0 - yy) : 1.0), 0.0);
   if (p.x == 0) {
     // Einlass: Wind vorgegeben, Dichte von der Nachbarzelle (Gleichgewicht)
     float rin = 1.0 + texelFetch(t2, ivec2(1, p.y), 0).y;
-    for (int i = 0; i < 9; i++) f[i] = feq(i, rin, vec2(uin, 0.0));
+    for (int i = 0; i < 9; i++) f[i] = feq(i, rin, uInlet);
   } else if (p.x == N.x - 1) {
     // Auslass: Druck vorgegeben (Dichte 1), Geschwindigkeit von der Nachbarzelle; das verankert den Druck im Kanal
     vec2 uo = texelFetch(t2, ivec2(N.x - 2, p.y), 0).zw;
@@ -380,27 +440,56 @@ void main() {
       ivec2 n = p - C[i];
       int j = i;
       if (n.y < 0) {
-        if (ground == 1) { f[i] = fetchF(OPP[i], p); wallBits |= (1 << i); continue; }   // Boden haftet: Rückprall
-        n.y = 0; j = MIRY[i];                                                   // glatte Wand: Spiegelung
+        if (ground == 1 || ground == 2) { f[i] = fetchF(OPP[i], p); wallBits |= (1 << i); continue; }   // Boden haftet: Rückprall
+        n.y = 0; j = MIRY[i]; mirBits |= (1 << i);                              // glatte Wand: Spiegelung
       }
-      if (n.y >= N.y) { n.y = N.y - 1; j = MIRY[i]; }                           // Decke: Spiegelung
+      if (n.y >= N.y) {
+        if (ground == 2) { f[i] = fetchF(OPP[i], p); wallBits |= (1 << i); continue; }   // Decke haftet (Prüffall)
+        n.y = N.y - 1; j = MIRY[i]; mirBits |= (1 << i);                        // Decke: Spiegelung
+      }
       if (beta >= 1.0 && isSolid(n)) {
-        f[i] = fetchF(OPP[i], p);                                               // Wand: Rückprall an der halben Zelle
-        F += 2.0 * (f[i] - W[i]) * vec2(C[OPP[i]]);                             // Impuls an die Wand (ohne den Ruhedruck,
-                                                                                // der sich nur bei geschlossenen Körpern aufhebt; Räder auf dem Boden sind offen)
+        // Wand an der echten Stelle (Bouzidi, linear): q ist der Anteil der Verbindung bis zur Wand.
+        // fin läuft auf die Wand zu, f[i] kommt zurück; bei q = 0,5 ist es der gewöhnliche Rückprall an der halben Zelle.
+        float q = qOf(OPP[i], p);
+        float fin = fetchF(OPP[i], p);
+        if (q < 0.5) {
+          ivec2 pf = p + C[i];                                                  // Nachbar auf der wandfernen Seite
+          f[i] = fluidAt(pf) ? 2.0 * q * fin + (1.0 - 2.0 * q) * fetchF(OPP[i], pf) : fin;
+        } else {
+          f[i] = fin / (2.0 * q) + (1.0 - 1.0 / (2.0 * q)) * fetchF(i, p);
+        }
+        fIn[i] = fin;
         wallBits |= (1 << i);
         continue;
       }
       f[i] = fetchF(j, n);
     }
+    // Mitbewegte Wand (Wandgesetz): Der Zusatz −6 W ρ (c·u_w) je Wandverbindung wird so verschoben, dass die Zelle dabei
+    // keine Masse gewinnt oder verliert (auf schrägen Wänden sind die Verbindungen nicht symmetrisch zur Tangente; ohne
+    // den Ausgleich pumpt die Wand Masse und die Wandzellen laufen davon). Danach der Impuls an die Wand.
+    if (wallBits != 0) {
+      float sw = 0.0, swc = 0.0;
+      for (int i = 1; i < 9; i++) if ((wallBits & (1 << i)) != 0 && bodyAt(p - C[i])) { sw += W[i]; swc += W[i] * dot(vec2(C[OPP[i]]), uWall); }
+      float mu = sw > 0.0 ? swc / sw : 0.0;
+      for (int i = 1; i < 9; i++) if ((wallBits & (1 << i)) != 0 && bodyAt(p - C[i])) {
+        // Wandterm in der Form des Rückpralls an der halben Zelle für alle q (bei Bouzidi gehörte zu q ≥ 0,5 der Faktor
+        // 1/(2q); er würde die Wand bei q nahe 1 nur halb so schnell mitbewegen und die Reibung verdoppeln – das Wandgesetz
+        // soll aber gerade die Schubspannung treffen, deshalb hier ohne den Faktor)
+        f[i] -= 6.0 * rhoPrev * W[i] * (dot(vec2(C[OPP[i]]), uWall) - mu);
+        F += (fIn[i] + f[i] - 2.0 * W[i]) * vec2(C[OPP[i]]);                  // Impuls an die Wand (ohne den Ruhedruck,
+                                                                                // der sich nur bei geschlossenen Körpern aufhebt; Räder auf dem Boden sind offen)
+      }
+    }
     // Eingeklemmte Richtungspaare (Spalt von einer Zelle, etwa Reifen am Boden): beide Verteilungen mitteln, sonst
     // schwingt der Impuls dort jeden Schritt hin und her
+    // (auch Rad auf glattem Boden: Rückprall oben, Spiegelung unten tauschen die beiden Verteilungen ebenso jeden Schritt)
+    int pairBits = wallBits | mirBits;
     for (int i = 1; i < 3; i++) {
       int o = OPP[i];
-      if ((wallBits & (1 << i)) != 0 && (wallBits & (1 << o)) != 0) { float m = 0.5 * (f[i] + f[o]); F -= vec2(C[i]) * (m - f[i]); F += vec2(C[i]) * (m - f[o]); f[i] = m; f[o] = m; }
+      if ((pairBits & (1 << i)) != 0 && (pairBits & (1 << o)) != 0) { float m = 0.5 * (f[i] + f[o]); F -= vec2(C[i]) * (m - f[i]); F += vec2(C[i]) * (m - f[o]); f[i] = m; f[o] = m; }
     }
-    if ((wallBits & 32) != 0 && (wallBits & 128) != 0) { float m = 0.5 * (f[5] + f[7]); F -= vec2(C[5]) * (m - f[5]); F += vec2(C[5]) * (m - f[7]); f[5] = m; f[7] = m; }
-    if ((wallBits & 64) != 0 && (wallBits & 256) != 0) { float m = 0.5 * (f[6] + f[8]); F -= vec2(C[6]) * (m - f[6]); F += vec2(C[6]) * (m - f[8]); f[6] = m; f[8] = m; }
+    if ((pairBits & 32) != 0 && (pairBits & 128) != 0) { float m = 0.5 * (f[5] + f[7]); F -= vec2(C[5]) * (m - f[5]); F += vec2(C[5]) * (m - f[7]); f[5] = m; f[7] = m; }
+    if ((pairBits & 64) != 0 && (pairBits & 256) != 0) { float m = 0.5 * (f[6] + f[8]); F -= vec2(C[6]) * (m - f[6]); F += vec2(C[6]) * (m - f[8]); f[6] = m; f[8] = m; }
   }
   float rho = 0.0; vec2 m = vec2(0.0);
   for (int i = 0; i < 9; i++) { rho += f[i]; m += f[i] * vec2(C[i]); }
@@ -418,28 +507,30 @@ void main() {
   // Smagorinsky: Wirbelviskosität aus dem Nichtgleichgewicht
   float pn = sqrt(pxx * pxx + pyy * pyy + 2.0 * pxy * pxy);
   float tau = 0.5 * (tau0 + sqrt(tau0 * tau0 + 18.0 * 1.4142136 * csm * csm * pn / rho));
-  // Dämpfungszonen an beiden Enden: Dort werden Dichte (und am Einlass auch die Geschwindigkeit) sanft auf den
-  // Sollzustand gezogen, damit Druckwellen vom Start und von Wirbeln nicht hin und her laufen; vor dem Auslass wird
-  // außerdem das Nichtgleichgewicht stärker geglättet (Wirbel klingen ab, statt an der Wand zu reflektieren).
-  // Die Einlasszone liegt im verdeckten Vorlauf, die Auslasszone ist schmal.
-  float sIn = max(0.0, 1.0 - float(p.x) / spongeIn);
+  // Dämpfungszonen, damit Druckwellen vom Start und von Wirbeln nicht endlos hin und her laufen:
+  //  - Einlasszone (im verdeckten Vorlauf): zieht nur die Geschwindigkeit auf den Einlasswind; die Dichte bleibt frei,
+  //    sonst ginge Masse verloren und hinter der Zone wäre der Wind schwächer als vorgegeben (Prüffall Rohrströmung: −14 %)
+  //  - Auslasszone: zieht die Dichte auf 1 (Druckanker) und glättet das Nichtgleichgewicht stärker (Wirbel klingen ab,
+  //    statt an der Wand zu reflektieren)
+  //  - Decke und (bei freien Formen) Boden: nur die Dichte, gegen Querwellen zwischen den Wänden
+  //  - überall ganz schwach (Zeitmaß 500 Schritte) die Dichte auf den Kanalmittelwert: schluckt die langen Wellen von
+  //    Kanallänge, die keine Zone fassen kann, ohne Masse zu erzeugen oder zu vernichten
+  float sIn = spongeIn > 0.0 ? max(0.0, 1.0 - float(p.x) / spongeIn) : 0.0;
   float sOut = max(0.0, 1.0 - float(N.x - 1 - p.x) / spongeOut);
-  // Decke und (bei freien Formen) Boden dämpfen nur den Druck: Querwellen laufen sonst endlos zwischen den Wänden
-  float sWall = max(0.0, 1.0 - float(N.y - 1 - p.y) / spongeWall);
-  if (ground == 0) sWall = max(sWall, max(0.0, 1.0 - float(p.y) / spongeWall));
+  float sWall = spongeWall > 0.0 ? max(0.0, 1.0 - float(N.y - 1 - p.y) / spongeWall) : 0.0;
+  if (ground == 0 && spongeWall > 0.0) sWall = max(sWall, max(0.0, 1.0 - float(p.y) / spongeWall));   // nur bei freien Formen auch am Boden
+  if (ground == 2) sWall = 0.0;
   float om1 = (1.0 - 1.0 / tau) * (1.0 - 0.9 * sOut * sOut);
-  // Lange Druckwellen (Kanallänge) kann keine Zone schlucken; sie werden überall ganz schwach gedämpft (Zeitmaß 500 Schritte),
-  // das verfälscht die Strömung um weniger als ein Prozent
-  float sigma = max(max(0.1 * sIn * sIn, 0.1 * sOut * sOut), 0.3 * sWall * sWall) + sigmaG;
-  float rhoT = 1.0;
-  vec2 uT = sIn > 0.0 ? mix(u, vec2(uin, 0.0), sIn * sIn) : u;
+  float sigIn = 0.1 * sIn * sIn, sigOut = max(0.1 * sOut * sOut, 0.3 * sWall * sWall);
   float g[9];
   for (int i = 0; i < 9; i++) {
     // regularisiert: nur der Spannungsanteil des Nichtgleichgewichts bleibt
     float cx = float(C[i].x), cy = float(C[i].y);
     float q = (cx * cx - 1.0 / 3.0) * pxx + (cy * cy - 1.0 / 3.0) * pyy + 2.0 * cx * cy * pxy;
     g[i] = e[i] + om1 * W[i] * 4.5 * q;
-    if (sigma > 0.0) g[i] -= sigma * (e[i] - feq(i, rhoT, uT));
+    if (sigIn > 0.0) g[i] -= sigIn * (e[i] - feq(i, rho, uInlet));
+    if (sigOut > 0.0) g[i] -= sigOut * (e[i] - feq(i, 1.0, u));
+    if (sigmaG > 0.0) g[i] -= sigmaG * (e[i] - feq(i, 1.0 + rhoRef, u));
   }
   if (solidP) {
     // durchlässiger Körper beim Start: Anteil beta wird zurückgeworfen; die Kraft ist der dabei abgegebene Impuls
@@ -452,16 +543,17 @@ void main() {
   o0 = vec4(g[0], g[1], g[2], g[3]);
   o1 = vec4(g[4], g[5], g[6], g[7]);
   o2 = vec4(g[8], rho - 1.0, u);
-  o3 = vec4(F, um, 0.0);
+  o3 = vec4(F, um, solidP ? 0.0 : rho - 1.0);   // Kraft, Geschwindigkeit (Größtwert) und Dichte (Summe) für die Auswertung
 }`;
 
 // Anfangszustand: Gleichgewicht mit Wind überall (feste Zellen in Ruhe)
 const FS_INIT = D2Q9_HEAD + `
-uniform sampler2D mask; uniform float uin;
+uniform float uin; uniform int inletShape; uniform ivec2 N;
 layout(location = 0) out vec4 o0; layout(location = 1) out vec4 o1; layout(location = 2) out vec4 o2; layout(location = 3) out vec4 o3;
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
-  vec2 u = vec2(uin, 0.0);   // auch in den Körperzellen: beim sanften Start sind sie zunächst durchlässig
+  float yy = (float(p.y) + 0.5) / float(N.y);   // Wände bei y = 0 und y = N.y (halbe Zelle außerhalb der Randzellmitten)
+  vec2 u = vec2(uin * (inletShape == 1 ? 4.0 * yy * (1.0 - yy) : 1.0), 0.0);   // auch in den Körperzellen: beim sanften Start sind sie zunächst durchlässig
   o0 = vec4(feq(0, 1.0, u), feq(1, 1.0, u), feq(2, 1.0, u), feq(3, 1.0, u));
   o1 = vec4(feq(4, 1.0, u), feq(5, 1.0, u), feq(6, 1.0, u), feq(7, 1.0, u));
   o2 = vec4(feq(8, 1.0, u), 0.0, u);
@@ -491,9 +583,14 @@ precision highp float; precision highp sampler2D;
 uniform sampler2D src;
 out vec4 o;
 void main() {
-  ivec2 p = ivec2(gl_FragCoord.xy) * 2, hi = textureSize(src, 0) - 1;   // am Rand (ungerade Größen) nicht über die Textur hinauslesen
-  vec4 a = texelFetch(src, p, 0), b = texelFetch(src, min(p + ivec2(1, 0), hi), 0), c = texelFetch(src, min(p + ivec2(0, 1), hi), 0), d = texelFetch(src, min(p + ivec2(1, 1), hi), 0);
-  o = vec4(a.xy + b.xy + c.xy + d.xy, max(max(a.z, b.z), max(c.z, d.z)), 0.0);
+  ivec2 p = ivec2(gl_FragCoord.xy) * 2, sz = textureSize(src, 0);
+  // am Rand (ungerade Größen) liegt der zweite Texel außerhalb: dann zählt er null (nicht den Rand doppelt!)
+  bool bx = p.x + 1 < sz.x, by = p.y + 1 < sz.y;
+  vec4 a = texelFetch(src, p, 0);
+  vec4 b = bx ? texelFetch(src, p + ivec2(1, 0), 0) : vec4(0.0);
+  vec4 c = by ? texelFetch(src, p + ivec2(0, 1), 0) : vec4(0.0);
+  vec4 d = bx && by ? texelFetch(src, p + ivec2(1, 1), 0) : vec4(0.0);
+  o = vec4(a.xy + b.xy + c.xy + d.xy, max(max(a.z, b.z), max(c.z, d.z)), a.w + b.w + c.w + d.w);
 }`;
 
 // Bild: Feld einfärben, Modell zeichnen, Rauch darüber
@@ -602,26 +699,38 @@ class Lbm {
     this.parity = 0;
     this.mask = this.tex(nx, ny, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR);   // nur der rote Kanal zählt (RGBA ist überall verlässlich)
     this.maskData = new Uint8Array(nx * ny); this.maskRGBA = new Uint8Array(nx * ny * 4);
+    this.qTex = [0, 1].map(() => this.tex(nx, ny, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.NEAREST));   // Wandlage je Richtung
+    this.qData = [new Uint8Array(nx * ny * 4), new Uint8Array(nx * ny * 4)];
     this.dyes = [0, 1].map(() => { const t = this.tex(nx, ny, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, gl.LINEAR); return { t, f: this.fbo([t]) }; });
     this.dyeParity = 0;
     // Kette für die Summen
     this.red = []; let w = nx, h = ny;
     while (w > 1 || h > 1) { w = Math.ceil(w / 2); h = Math.ceil(h / 2); const t = this.tex(w, h, gl.RGBA32F, gl.RGBA, gl.FLOAT, gl.NEAREST); this.red.push({ w, h, t, f: this.fbo([t]) }); }
     this.readBuf = new Float32Array(4);
-    this.steps = 0;
+    this.steps = 0; this.sinceInit = 0; this.rhoRef = 0; this.nFluid = nx * ny;
   }
   destroyGrid() {
     const gl = this.gl;
     if (!this.sets) return;
     for (const s of this.sets) { gl.deleteFramebuffer(s.f); s.t.forEach(t => gl.deleteTexture(t)); }
     for (const d of this.dyes) { gl.deleteFramebuffer(d.f); gl.deleteTexture(d.t); }
+    if (this.qTex) this.qTex.forEach(t => gl.deleteTexture(t));
     for (const r of this.red) { gl.deleteFramebuffer(r.f); gl.deleteTexture(r.t); }
     gl.deleteTexture(this.mask);
     this.sets = null;
   }
-  setMask(data) {
+  // Maske (1 = fest) und wahlweise die Wandlage je Richtung (q1: Richtungen 1–4, q2: 5–8, Byte = q·255, 0 = halbe Zelle)
+  setMask(data, q1, q2, dist, skipQ = false) {
     const gl = this.gl; this.maskData.set(data);
-    const m = this.maskRGBA; for (let i = 0; i < data.length; i++) { const v = data[i] ? 255 : 0; m[i * 4] = v; m[i * 4 + 1] = v; m[i * 4 + 2] = v; m[i * 4 + 3] = 255; }
+    gl.activeTexture(gl.TEXTURE7);
+    for (let k = 0; k < 2 && !skipQ; k++) {
+      const q = k ? q2 : q1; if (q) this.qData[k].set(q); else this.qData[k].fill(0);
+      gl.bindTexture(gl.TEXTURE_2D, this.qTex[k]); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.nx, this.ny, gl.RGBA, gl.UNSIGNED_BYTE, this.qData[k]);
+    }
+    const m = this.maskRGBA; let solid = 0;
+    for (let i = 0; i < data.length; i++) { const v = data[i] ? 255 : 0; if (v) solid++; m[i * 4] = v; m[i * 4 + 1] = dist ? dist[i] : 255; m[i * 4 + 2] = v; m[i * 4 + 3] = 255; }   // G: Wandabstand·16
+    this.nFluid = data.length - solid;
     gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, this.mask);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.nx, this.ny, gl.RGBA, gl.UNSIGNED_BYTE, m);
@@ -635,11 +744,11 @@ class Lbm {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
   // Anfangszustand setzen (Wind überall), Rauch löschen
-  init(uin) {
+  init(uin, inletShape = 0) {
     const gl = this.gl;
-    for (const s of this.sets) this.run(this.P.init, s.f, this.nx, this.ny, (u) => { this.bindTex(0, this.mask); gl.uniform1i(u.mask, 0); gl.uniform1f(u.uin, uin); });
+    for (const s of this.sets) this.run(this.P.init, s.f, this.nx, this.ny, (u) => { gl.uniform1f(u.uin, uin); gl.uniform1i(u.inletShape, inletShape); gl.uniform2i(u.N, this.nx, this.ny); });
     for (const d of this.dyes) { gl.bindFramebuffer(gl.FRAMEBUFFER, d.f); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
-    this.steps = 0; this.sinceInit = 0;
+    this.steps = 0; this.sinceInit = 0; this.rhoRef = 0;
   }
   // n Zeitschritte
   step(n, prm) {
@@ -649,17 +758,21 @@ class Lbm {
       const t = Math.min(1, (this.sinceInit || 0) / RAMP_STEPS), beta = prm.beta !== undefined ? prm.beta : t * t * (3 - 2 * t);
       this.sinceInit++;
       this.run(this.P.step, dst.f, this.nx, this.ny, (u) => {
-        this.bindTex(0, src.t[0]); this.bindTex(1, src.t[1]); this.bindTex(2, src.t[2]); this.bindTex(3, this.mask);
-        gl.uniform1i(u.t0, 0); gl.uniform1i(u.t1, 1); gl.uniform1i(u.t2, 2); gl.uniform1i(u.mask, 3);
+        this.bindTex(0, src.t[0]); this.bindTex(1, src.t[1]); this.bindTex(2, src.t[2]); this.bindTex(3, this.mask); this.bindTex(4, this.qTex[0]); this.bindTex(5, this.qTex[1]);
+        gl.uniform1i(u.t0, 0); gl.uniform1i(u.t1, 1); gl.uniform1i(u.t2, 2); gl.uniform1i(u.mask, 3); gl.uniform1i(u.q1, 4); gl.uniform1i(u.q2, 5);
         gl.uniform2i(u.N, this.nx, this.ny);
-        gl.uniform1f(u.tau0, 0.5 + 3 * prm.nu); gl.uniform1f(u.uin, prm.uin); gl.uniform1f(u.csm, prm.csm); gl.uniform1i(u.ground, prm.ground ? 1 : 0);
+        gl.uniform1f(u.tau0, 0.5 + 3 * prm.nu); gl.uniform1f(u.uin, prm.uin); gl.uniform1f(u.csm, prm.csm); gl.uniform1i(u.ground, prm.ground | 0);
+        gl.uniform1f(u.wturb, prm.wturb || 0); gl.uniform1f(u.nuPhys, prm.nuPhys || 1e-3);
+        gl.uniform1f(u.sepTurn, prm.sepTurn !== undefined ? prm.sepTurn : SEP_TURN); gl.uniform1f(u.sMax, prm.sMax !== undefined ? prm.sMax : S_MAX);
+        gl.uniform1i(u.inletShape, prm.inletShape || 0);
         // Dämpfungszonen: der ganze verdeckte Vorlauf, 15 % der Länge vor dem Auslass, 12 % der Höhe an Decke und Boden
-        gl.uniform1f(u.spongeIn, Math.max(8, (this.x0 || 0) - 2)); gl.uniform1f(u.spongeOut, Math.max(12, 0.15 * this.nx)); gl.uniform1f(u.spongeWall, Math.max(2, (prm.wallFrac !== undefined ? prm.wallFrac : 0.12) * this.ny));
-        gl.uniform1f(u.sigmaG, prm.sigmaG !== undefined ? prm.sigmaG : 0.002);
+        gl.uniform1f(u.spongeIn, prm.spongeIn !== undefined ? prm.spongeIn : Math.max(8, (this.x0 || 0) - 2)); gl.uniform1f(u.spongeOut, Math.max(12, 0.15 * this.nx)); gl.uniform1f(u.spongeWall, prm.wallFrac !== undefined ? prm.wallFrac * this.ny : 0.12 * this.ny);
+        gl.uniform1f(u.sigmaG, prm.sigmaG !== undefined ? prm.sigmaG : 0.002); gl.uniform1f(u.rhoRef, this.rhoRef || 0);
         gl.uniform1f(u.beta, beta);
       });
       this.parity = 1 - this.parity;
       this.steps++;
+      if (this.steps % 60 === 0) this.readForce();   // Kanalmittel der Dichte (rhoRef) auffrischen, auch ohne Anzeige
     }
   }
   // Rauch um dt Schritte weiterführen
@@ -683,7 +796,9 @@ class Lbm {
     const last = this.red[this.red.length - 1];
     gl.bindFramebuffer(gl.FRAMEBUFFER, last.f);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, this.readBuf);
-    return [this.readBuf[0], this.readBuf[1], this.readBuf[2]];
+    // mittlere Dichteabweichung der freien Zellen: Ziel der schwachen Dämpfung im nächsten Schritt
+    if (this.nFluid > 0) this.rhoRef = this.readBuf[3] / this.nFluid;
+    return [this.readBuf[0], this.readBuf[1], this.readBuf[2], this.rhoRef];
   }
   // mittlere Dichteabweichung einer Spalte (Bezugsdruck: Spalte hinter dem Einlass)
   readColumnRho(x) {
@@ -728,37 +843,72 @@ function gridSize() {
 
 // Form in die Maske zeichnen: Pfad (200 × 100) in den Kanal legen, gedreht um die Mitte; Bodenformen stehen auf dem Boden
 function rasterShape(s, nx, ny, angleDeg) {
-  // doppelt so fein gezeichnet und je Zelle die Deckung gezählt: so werden runde Formen oben und unten gleich
-  const S = 2, cv = document.createElement('canvas'); cv.width = nx * S; cv.height = ny * S;
-  const g = cv.getContext('2d', { willReadFrequently: true });
-  g.fillStyle = '#000'; g.fillRect(0, 0, nx * S, ny * S);
+  // Der Pfad wird nicht gerastert, sondern je Zellmitte abgefragt (fest = Mitte im Körper); die Wandlage zwischen den
+  // Zellmitten liefert wallFractions. So passen Maske und Wandlage zusammen, und runde Formen bleiben symmetrisch.
+  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 4;   // nur für isPointInPath
+  const g = cv.getContext('2d');
   const x0 = lbm.x0 || 0, nxv = nx - x0;
   // Kastenbreite 200 -> Anteil der sichtbaren Breite; im Querformat (niedriger Kanal) etwas kleiner, damit die
   // Versperrung ähnlich bleibt und die Beiwerte nicht von der Lage des Handys abhängen
   const k = (s.ground ? 0.42 : 0.38) * Math.min(nxv, 1.25 * ny) / 200;
   const cx = x0 + 0.4 * nxv;
-  g.save();
-  g.scale(S, S);
+  g.setTransform(1, 0, 0, 1, 0, 0);
   g.translate(cx, s.ground ? ny : ny / 2);
   if (!s.ground) g.rotate(angleDeg * DEG);
   g.scale(k, k);
   g.translate(-100, s.ground ? -s.bottom : -50);
-  g.fillStyle = '#fff';
-  g.fill(new Path2D(s.path), 'nonzero');
-  g.restore();
-  const img = g.getImageData(0, 0, nx * S, ny * S).data, m = new Uint8Array(nx * ny);
-  // Bildzeile 0 ist oben, Gitterzeile 0 unten
+  const path = new Path2D(s.path);
+  // Innen-Test in Zellkoordinaten (y nach oben -> Bildkoordinaten y nach unten)
+  const inside = (x, y) => g.isPointInPath(path, x, ny - y, 'nonzero');
+  const m = new Uint8Array(nx * ny);
   let xa = nx, xb = -1, rows = 0;
   for (let y = 0; y < ny; y++) {
     let any = false;
-    for (let x = 0; x < nx; x++) {
-      let c = 0;
-      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) if (img[((y * S + j) * nx * S + x * S + i) * 4] > 127) c++;
-      if (c * 2 >= S * S) { m[(ny - 1 - y) * nx + x] = 1; any = true; if (x < xa) xa = x; if (x > xb) xb = x; }
-    }
+    for (let x = 0; x < nx; x++) if (inside(x + 0.5, y + 0.5)) { m[y * nx + x] = 1; any = true; if (x < xa) xa = x; if (x > xb) xb = x; }
     if (any) rows++;
   }
-  return { m, height: rows, length: Math.max(1, xb - xa + 1) };
+  const [q1, q2] = wallFractions(nx, ny, m, inside);
+  return { m, q1, q2, dist: wallDistance(nx, ny, m, q1, q2), height: rows, length: Math.max(1, xb - xa + 1) };
+}
+
+// Wandabstand jeder freien Zelle zum Körper (Zellen, als Byte ·16, höchstens 15,9): erste Schicht aus der Wandlage q,
+// weiter außen per Abstandslauf (Chamfer, zwei Durchgänge)
+function wallDistance(nx, ny, m, q1, q2) {
+  const d = new Float32Array(nx * ny).fill(99);
+  const len = [0, 1, 1, 1, 1, Math.SQRT2, Math.SQRT2, Math.SQRT2, Math.SQRT2];
+  for (let i = 0; i < nx * ny; i++) {
+    if (m[i]) { d[i] = 0; continue; }
+    for (let j = 1; j < 9; j++) { const q = j < 5 ? q1[i * 4 + j - 1] : q2[i * 4 + j - 5]; if (q) d[i] = Math.min(d[i], q / 255 * len[j]); }
+  }
+  const relax = (x, y, dx, dy, step) => { const i = y * nx + x, xn = x + dx, yn = y + dy; if (xn < 0 || yn < 0 || xn >= nx || yn >= ny) return; const v = d[yn * nx + xn] + step; if (v < d[i]) d[i] = v; };
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { relax(x, y, -1, 0, 1); relax(x, y, 0, -1, 1); relax(x, y, -1, -1, Math.SQRT2); relax(x, y, 1, -1, Math.SQRT2); }
+  for (let y = ny - 1; y >= 0; y--) for (let x = nx - 1; x >= 0; x--) { relax(x, y, 1, 0, 1); relax(x, y, 0, 1, 1); relax(x, y, 1, 1, Math.SQRT2); relax(x, y, -1, 1, Math.SQRT2); }
+  const out = new Uint8Array(nx * ny);
+  for (let i = 0; i < nx * ny; i++) out[i] = Math.min(255, Math.round(d[i] * 16));
+  return out;
+}
+
+// Wandlage je Verbindung: Für jede freie Zelle mit festem Nachbarn in Richtung j wird per Halbierung gesucht, bei welchem
+// Anteil q der Strecke zur Nachbarzellmitte die Wand liegt (inside(x, y) sagt, ob ein Punkt im Körper liegt).
+// Ergebnis: zwei RGBA-Felder (Richtungen 1–4 und 5–8), Byte = q·255; 0 heißt „halbe Zelle“ (kein Innen-Test möglich).
+const CX = [0, 1, 0, -1, 0, 1, -1, -1, 1], CY = [0, 0, 1, 0, -1, 1, 1, -1, -1];
+function wallFractions(nx, ny, m, inside) {
+  const q1 = new Uint8Array(nx * ny * 4), q2 = new Uint8Array(nx * ny * 4);
+  if (!inside) return [q1, q2];
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    if (m[y * nx + x]) continue;
+    for (let j = 1; j < 9; j++) {
+      const xn = x + CX[j], yn = y + CY[j];
+      if (xn < 0 || yn < 0 || xn >= nx || yn >= ny || !m[yn * nx + xn]) continue;
+      const px = x + 0.5, py = y + 0.5;
+      if (inside(px, py) || !inside(px + CX[j], py + CY[j])) continue;   // Maske und Pfad uneins: halbe Zelle
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 8; k++) { const t = 0.5 * (lo + hi); if (inside(px + t * CX[j], py + t * CY[j])) hi = t; else lo = t; }
+      const q = Math.max(1, Math.min(255, Math.round(0.5 * (lo + hi) * 255)));
+      if (j < 5) q1[(y * nx + x) * 4 + j - 1] = q; else q2[(y * nx + x) * 4 + j - 5] = q;
+    }
+  }
+  return [q1, q2];
 }
 
 // Unterkante jedes Pfads (für Bodenformen) einmal bestimmen
@@ -785,8 +935,15 @@ function physParams() {
   // (Ein langsames Hochfahren des Winds wurde geprüft und verworfen: Der ganze Kanal müsste dann beschleunigt werden,
   // der Einlassdruck stieg dabei auf das 15-fache des Staudrucks und schwang lange nach.)
   // re: Reynoldszahl mit der größten Abmessung; reGrid: was das Gitter davon wirklich rechnet (gleiche Bezugslänge)
-  return { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground: !!(s && s.ground) && !App.draw, re, reGrid: U_LB * D / Math.max(nu, nuMin),
+  // Boden: Gebäude stehen auf haftendem Boden (1); bei Fahrzeugen bewegt sich die Straße mit der Luft, der Boden ist glatt (3)
+  const ground = s && s.ground && !App.draw ? (s.group === 'Fahrzeuge' ? 3 : 1) : 0;
+  // turbulente Grenzschicht ab Re ≈ 2·10⁵ (Umschlag wie beim Zylinder: 2–5·10⁵); dazwischen gleitender Übergang.
+  // nuPhys: wirkliche Zähigkeit der Luft in Gittereinheiten (für das Wandgesetz)
+  const wturb = WALL_LAW ? clamp((Math.log10(re) - Math.log10(2e5)) / (Math.log10(6e5) - Math.log10(2e5)), 0, 1) : 0;
+  const prm = { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground, re, reGrid: U_LB * D / Math.max(nu, nuMin),
+    wturb: QS.has('turb') ? +QS.get('turb') : wturb, nuPhys: nu, sepTurn: QS.has('sep') ? +QS.get('sep') : undefined, sMax: QS.has('smax') ? +QS.get('smax') : undefined,
     sigmaG: QS.has('sg') ? +QS.get('sg') : undefined, wallFrac: QS.has('sw') ? +QS.get('sw') : undefined };   // sg, sw: nur zum Prüfen der Dämpfung
+  return App.override ? Object.assign(prm, App.override) : prm;   // Prüffälle setzen eigene Werte (WH.setParams)
 }
 
 function setShape(s) {
@@ -795,7 +952,7 @@ function setShape(s) {
   const [nx, ny] = [lbm.nx, lbm.ny];
   const r = rasterShape(s, nx, ny, App.angle);
   App.heightCells = r.height; App.lengthCells = r.length;
-  lbm.setMask(r.m);
+  lbm.setMask(r.m, r.q1, r.q2, r.dist);
   $('#angleRow').style.visibility = s.ground ? 'hidden' : '';
   $('#hudName').textContent = s.name + (s.info ? ' · ' + s.info : '');
   for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === s.id ? 'true' : 'false');
@@ -806,7 +963,8 @@ function setShape(s) {
 function resetForces() { App.force = { n: 0, fx: 0, fy: 0 }; App.sinceReset = 0; }
 
 function restart() {
-  lbm.init(U_LB); App.nuMin = 0; resetForces();
+  const o = App.override || {};
+  lbm.init(o.uin !== undefined ? o.uin : U_LB, o.inletShape || 0); App.nuMin = 0; resetForces();
 }
 
 // Gitter neu anlegen (Start, Gitterwahl, Drehen des Handys); eine gemalte Form wird auf das neue Gitter übertragen
@@ -840,7 +998,8 @@ function updateHud() {
   } else { el.textContent = '–'; ela.textContent = '–'; }
   const p = physParams();
   const reTxt = (v) => v >= 1e6 ? fmt(v / 1e6, 1) + ' Mio.' : v >= 1000 ? fmt(v / 1000) + ' Tsd.' : fmt(v);
-  $('#hudRe').textContent = 'Re ' + reTxt(p.re) + (p.reGrid < p.re * 0.9 ? ' (Gitter: ' + reTxt(p.reGrid) + ')' : '');
+  const turb = WALL_LAW ? (p.wturb >= 1 ? ' · turbulent' : p.wturb > 0 ? ' · Umschlag' : ' · laminar') : '';
+  $('#hudRe').textContent = 'Re ' + reTxt(p.re) + (p.reGrid < p.re * 0.9 ? ' (Gitter: ' + reTxt(p.reGrid) + ')' : '') + turb;
 }
 
 function frame(now) {
@@ -868,7 +1027,7 @@ function frame(now) {
     if ((App.frameCount = (App.frameCount || 0) + 1) % 3 === 0) {
       const [fx, fy, umax] = lbm.readForce();
       if (App.frameCount % 12 === 0) App.pRef = lerp(App.pRef || 0, lbm.readColumnRho(2), 0.5);
-      if (!(umax < 0.38)) {
+      if (!(umax < 0.4)) {
         // instabil: mehr Dämpfung, neu starten
         App.nuMin = 1.5 * prm.nu;
         lbm.init(U_LB); resetForces();
@@ -888,7 +1047,7 @@ function frame(now) {
 function startDraw() {
   App.draw = true; App.shape = null;
   App.drawn = new Uint8Array(lbm.nx * lbm.ny);
-  lbm.setMask(App.drawn); App.heightCells = 1; App.lengthCells = 100;
+  lbm.setMask(App.drawn, null, null, null, true); App.heightCells = 1; App.lengthCells = 100;
   $('#drawbar').hidden = false; $('#hud').hidden = true; $('#angleRow').style.visibility = 'hidden';
   $('#hudName').textContent = 'Selber gemalt · mit dem Finger ins Bild zeichnen';
   for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === 'malen' ? 'true' : 'false');
@@ -907,7 +1066,8 @@ function finishDraw() {
   const m = App.drawn, nx = lbm.nx, ny = lbm.ny; let rows = 0, x0 = nx, x1 = -1;
   for (let y = 0; y < ny; y++) { let any = false; for (let x = 0; x < nx; x++) if (m[y * nx + x]) { any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } if (any) rows++; }
   App.heightCells = Math.max(rows, 1); App.lengthCells = Math.max(x1 - x0 + 1, 10);
-  lbm.setMask(m); App.draw = false; $('#drawbar').hidden = true; $('#hud').hidden = false;
+  const [q1, q2] = wallFractions(nx, ny, m, null);
+  lbm.setMask(m, q1, q2, wallDistance(nx, ny, m, q1, q2)); App.draw = false; $('#drawbar').hidden = true; $('#hud').hidden = false;
   $('#hudName').textContent = 'Selber gemalt';
   resetForces(); restart();
 }
@@ -936,12 +1096,15 @@ function setupUI() {
   const sp = $('#speed'), spv = $('#speedV');
   sp.addEventListener('input', () => { App.speed = +sp.value; spv.textContent = fmt(App.speed) + ' m/s'; updateHud(); });
   const an = $('#angle'), anv = $('#angleV');
+  let angleJob = 0;
   an.addEventListener('input', () => {
     App.angle = +an.value; anv.textContent = fmt(App.angle) + '°';
-    if (App.shape) {
-      const r = rasterShape(App.shape, lbm.nx, lbm.ny, App.angle); App.heightCells = r.height; App.lengthCells = r.length; lbm.setMask(r.m); resetForces();
+    if (!App.shape || angleJob) return;
+    angleJob = requestAnimationFrame(() => {   // je Bild höchstens einmal neu rastern (Wandlage kostet 50–100 ms)
+      angleJob = 0;
+      const r = rasterShape(App.shape, lbm.nx, lbm.ny, App.angle); App.heightCells = r.height; App.lengthCells = r.length; lbm.setMask(r.m, r.q1, r.q2, r.dist); resetForces();
       lbm.sinceInit = Math.min(lbm.sinceInit, Math.round(RAMP_STEPS * 0.5));   // Körper kurz wieder etwas durchlässig: kein Druckstoß
-    }
+    });
   });
   const mb = $('#modeBtn');
   const showMode = () => { mb.textContent = MODES[App.mode][0]; $('#legend').textContent = MODES[App.mode][1]; };
@@ -950,20 +1113,14 @@ function setupUI() {
   $('#resetBtn').addEventListener('click', () => { restart(); });
   $('#helpBtn').addEventListener('click', () => { const d = $('#help'); d.showModal(); d.scrollTop = 0; });
   $('#help').addEventListener('click', (e) => { if (e.target === $('#help')) $('#help').close(); });
-  // 3D als Extra: Kann das Gerät WebGPU, öffnet der Knopf die große Fassung mit einem passenden 3D-Modell
-  if (navigator.gpu) {
-    const to3d = { kaefer: 'pkw', sportwagen: 'pkw', wohnmobil: 'pkw', lkw: 'lkw', bus: 'lkw', zug: 'lkw', fluegel: 'fluegel', flugzeug: 'fluegel', papierflieger: 'fluegel', drachen: 'fluegel', moewe: 'fluegel', haus: 'haus', kirche: 'haus', turm: 'schornstein', rakete: 'schornstein', flasche: 'schornstein', zeppelin: 'schornstein' };
-    const b = $('#btn3d'); b.hidden = false;
-    b.addEventListener('click', () => { const id = App.shape && to3d[App.shape.id] || 'kugel'; window.open('https://fbw159.github.io/windkanal/?modell=' + id, '_blank', 'noopener'); });
-  }
   $('#helpClose').addEventListener('click', () => $('#help').close());
-  $('#drawClear').addEventListener('click', () => { App.drawn.fill(0); lbm.setMask(App.drawn); });
+  $('#drawClear').addEventListener('click', () => { App.drawn.fill(0); lbm.setMask(App.drawn, null, null, null, true); });
   $('#drawDone').addEventListener('click', finishDraw);
   for (const b of document.querySelectorAll('#gridSeg button')) b.addEventListener('click', () => { App.grid = b.dataset.v; App.gridChosen = true; for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); rebuildGrid(); });
   // Malen mit Finger oder Maus
   const cv = $('#gl'); let last = null, drawing = false;
-  cv.addEventListener('pointerdown', (e) => { if (!App.draw) return; drawing = true; cv.setPointerCapture(e.pointerId); last = paintAt(e.clientX, e.clientY, null); lbm.setMask(App.drawn); e.preventDefault(); });
-  cv.addEventListener('pointermove', (e) => { if (!App.draw || !drawing) return; last = paintAt(e.clientX, e.clientY, last); lbm.setMask(App.drawn); e.preventDefault(); });
+  cv.addEventListener('pointerdown', (e) => { if (!App.draw) return; drawing = true; cv.setPointerCapture(e.pointerId); last = paintAt(e.clientX, e.clientY, null); lbm.setMask(App.drawn, null, null, null, true); e.preventDefault(); });
+  cv.addEventListener('pointermove', (e) => { if (!App.draw || !drawing) return; last = paintAt(e.clientX, e.clientY, last); lbm.setMask(App.drawn, null, null, null, true); e.preventDefault(); });
   const up = () => { drawing = false; last = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('touchmove', (e) => { if (App.draw) e.preventDefault(); }, { passive: false });
@@ -978,7 +1135,18 @@ function setupUI() {
 }
 
 // Prüfschnittstelle (für automatische Tests)
-window.WH = { App, get lbm() { return lbm; }, physParams, setShape: (id) => { const s = SHAPES.find(x => x.id === id); if (s) { setShape(s); restart(); } }, step: (n) => lbm.step(n, physParams()), force: () => lbm.readForce(), SHAPES };
+window.WH = {
+  App, get lbm() { return lbm; }, physParams, SHAPES,
+  setShape: (id) => { const s = SHAPES.find(x => x.id === id); if (s) { setShape(s); restart(); } },
+  step: (n) => lbm.step(n, physParams()), force: () => lbm.readForce(),
+  // Prüffälle: eigenes Gitter, eigene Maske, eigene Werte (nu, ground 0/1/2, inletShape, sigmaG, wallFrac, csm)
+  build: (nx, ny, x0) => { lbm.build(nx, ny, x0 || 0); App.shape = null; App.draw = false; App.drawn = null; lbm.init(U_LB); },
+  setMask: (m, H, L, inside) => { const [q1, q2] = wallFractions(lbm.nx, lbm.ny, m, inside || null); lbm.setMask(m, q1, q2, wallDistance(lbm.nx, lbm.ny, m, q1, q2)); App.heightCells = H || 1; App.lengthCells = L || 1; resetForces(); },
+  // Prüffälle ohne Form rechnen laminar und ohne Wirbelviskosität, wenn nichts anderes gesetzt ist
+  setParams: (o) => { App.override = o ? Object.assign({ wturb: 0, csm: 0 }, o) : null; restart(); },
+  // Feld lesen: Float32Array (rho−1, ux, uy je Zelle, 4 Werte)
+  field: (k = 2) => { const gl = lbm.gl, cur = lbm.sets[lbm.parity]; gl.bindFramebuffer(gl.FRAMEBUFFER, cur.f); gl.readBuffer(gl.COLOR_ATTACHMENT0 + k); const fl = new Float32Array(lbm.nx * lbm.ny * 4); gl.readPixels(0, 0, lbm.nx, lbm.ny, gl.RGBA, gl.FLOAT, fl); return fl; },
+};
 
 function main() {
   try {

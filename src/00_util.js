@@ -10,8 +10,11 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const DEG = Math.PI / 180;
 const NU_AIR = 1.5e-5;        // Zähigkeit der Luft in m²/s
 const RHO_AIR = 1.204;        // Dichte der Luft in kg/m³
-const U_LB = 0.1;             // Gitterwind (Zellen je Schritt)
+const U_LB = 0.08;            // Gitterwind (Zellen je Schritt); Spitzen bis 4·U bleiben so unter 0,35
 const RAMP_STEPS = 400;       // sanfter Start: so viele Schritte, bis der Körper ganz dicht ist
+const WALL_LAW = true;        // Wandgesetz (mitbewegte Wand) bei turbulenter Strömung
+const SEP_TURN = 0.5;         // sin 30°: dreht sich die Wand stärker vom Wind weg, löst die turbulente Grenzschicht ab
+const S_MAX = 0.95;           // größter Gleitanteil der Wand im Wandgesetz
 const QS = new URLSearchParams(location.search);
 
 // Zahl mit Komma, feste Nachkommastellen

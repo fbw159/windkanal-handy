@@ -16,7 +16,7 @@ async def main():
         await pg.goto(f'{URL}?form={shape}&gitter={grid}' + (f'&remax={int(recap)}' if recap else '') + __import__('os').environ.get('WHQS', ''))
         await pg.wait_for_timeout(800)
         await pg.evaluate(f"App.running = false; App.speed = {speed}; WH.setShape('{shape}')")
-        if recap: await pg.evaluate(f"App.nuMin = 0.1 * App.lengthCells / {recap}")
+        if recap: await pg.evaluate(f"App.nuMin = U_LB * App.lengthCells / {recap}")
         info = await pg.evaluate("({nx: lbm.nx, ny: lbm.ny, H: App.heightCells, L: App.lengthCells, p: physParams()})")
         print(info)
         t0 = asyncio.get_event_loop().time(); hist = []
@@ -25,13 +25,13 @@ async def main():
             r = await pg.evaluate(f"(() => {{ WH.step({chunk}); const f = WH.force(); return f; }})()")
             hist.append(r)
         dt = asyncio.get_event_loop().time() - t0
-        H = info['H']; q = 0.5 * 0.1 * 0.1 * H
+        H = info['H']; U = await pg.evaluate("U_LB"); q = 0.5 * U * U * H
         n = len(hist); tail = hist[2 * n // 3:]
         cd = sum(h[0] for h in tail) / len(tail) / q; cl = sum(h[1] for h in tail) / len(tail) / q
         umax = max(h[2] for h in hist)
-        print(f"{shape}: {steps} Schritte in {dt:.0f} s ({steps/dt:.0f}/s), cW {cd:.3f} cA {cl:.3f} umax/U {umax/0.1:.2f}")
+        print(f"{shape}: {steps} Schritte in {dt:.0f} s ({steps/dt:.0f}/s), cW {cd:.3f} cA {cl:.3f} umax/U {umax/U:.2f}")
         print(' Verlauf cW:', ' '.join(f"{h[0]/q:.2f}" for h in hist[::max(1, n // 15)]))
-        print(' Verlauf umax/U:', ' '.join(f"{h[2]/0.1:.2f}" for h in hist[::max(1, n // 15)]))
+        print(' Verlauf umax/U:', ' '.join(f"{h[2]/U:.2f}" for h in hist[::max(1, n // 15)]))
         if shot:
             await pg.evaluate("App.mode = 0; for (let k = 0; k < 40; k++) lbm.dye(20, 12, 0);")
             await pg.evaluate("lbm.draw(0, physParams(), lbm.canvas.width, lbm.canvas.height)")

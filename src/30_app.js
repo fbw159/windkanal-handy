@@ -18,37 +18,72 @@ function gridSize() {
 
 // Form in die Maske zeichnen: Pfad (200 × 100) in den Kanal legen, gedreht um die Mitte; Bodenformen stehen auf dem Boden
 function rasterShape(s, nx, ny, angleDeg) {
-  // doppelt so fein gezeichnet und je Zelle die Deckung gezählt: so werden runde Formen oben und unten gleich
-  const S = 2, cv = document.createElement('canvas'); cv.width = nx * S; cv.height = ny * S;
-  const g = cv.getContext('2d', { willReadFrequently: true });
-  g.fillStyle = '#000'; g.fillRect(0, 0, nx * S, ny * S);
+  // Der Pfad wird nicht gerastert, sondern je Zellmitte abgefragt (fest = Mitte im Körper); die Wandlage zwischen den
+  // Zellmitten liefert wallFractions. So passen Maske und Wandlage zusammen, und runde Formen bleiben symmetrisch.
+  const cv = document.createElement('canvas'); cv.width = 4; cv.height = 4;   // nur für isPointInPath
+  const g = cv.getContext('2d');
   const x0 = lbm.x0 || 0, nxv = nx - x0;
   // Kastenbreite 200 -> Anteil der sichtbaren Breite; im Querformat (niedriger Kanal) etwas kleiner, damit die
   // Versperrung ähnlich bleibt und die Beiwerte nicht von der Lage des Handys abhängen
   const k = (s.ground ? 0.42 : 0.38) * Math.min(nxv, 1.25 * ny) / 200;
   const cx = x0 + 0.4 * nxv;
-  g.save();
-  g.scale(S, S);
+  g.setTransform(1, 0, 0, 1, 0, 0);
   g.translate(cx, s.ground ? ny : ny / 2);
   if (!s.ground) g.rotate(angleDeg * DEG);
   g.scale(k, k);
   g.translate(-100, s.ground ? -s.bottom : -50);
-  g.fillStyle = '#fff';
-  g.fill(new Path2D(s.path), 'nonzero');
-  g.restore();
-  const img = g.getImageData(0, 0, nx * S, ny * S).data, m = new Uint8Array(nx * ny);
-  // Bildzeile 0 ist oben, Gitterzeile 0 unten
+  const path = new Path2D(s.path);
+  // Innen-Test in Zellkoordinaten (y nach oben -> Bildkoordinaten y nach unten)
+  const inside = (x, y) => g.isPointInPath(path, x, ny - y, 'nonzero');
+  const m = new Uint8Array(nx * ny);
   let xa = nx, xb = -1, rows = 0;
   for (let y = 0; y < ny; y++) {
     let any = false;
-    for (let x = 0; x < nx; x++) {
-      let c = 0;
-      for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) if (img[((y * S + j) * nx * S + x * S + i) * 4] > 127) c++;
-      if (c * 2 >= S * S) { m[(ny - 1 - y) * nx + x] = 1; any = true; if (x < xa) xa = x; if (x > xb) xb = x; }
-    }
+    for (let x = 0; x < nx; x++) if (inside(x + 0.5, y + 0.5)) { m[y * nx + x] = 1; any = true; if (x < xa) xa = x; if (x > xb) xb = x; }
     if (any) rows++;
   }
-  return { m, height: rows, length: Math.max(1, xb - xa + 1) };
+  const [q1, q2] = wallFractions(nx, ny, m, inside);
+  return { m, q1, q2, dist: wallDistance(nx, ny, m, q1, q2), height: rows, length: Math.max(1, xb - xa + 1) };
+}
+
+// Wandabstand jeder freien Zelle zum Körper (Zellen, als Byte ·16, höchstens 15,9): erste Schicht aus der Wandlage q,
+// weiter außen per Abstandslauf (Chamfer, zwei Durchgänge)
+function wallDistance(nx, ny, m, q1, q2) {
+  const d = new Float32Array(nx * ny).fill(99);
+  const len = [0, 1, 1, 1, 1, Math.SQRT2, Math.SQRT2, Math.SQRT2, Math.SQRT2];
+  for (let i = 0; i < nx * ny; i++) {
+    if (m[i]) { d[i] = 0; continue; }
+    for (let j = 1; j < 9; j++) { const q = j < 5 ? q1[i * 4 + j - 1] : q2[i * 4 + j - 5]; if (q) d[i] = Math.min(d[i], q / 255 * len[j]); }
+  }
+  const relax = (x, y, dx, dy, step) => { const i = y * nx + x, xn = x + dx, yn = y + dy; if (xn < 0 || yn < 0 || xn >= nx || yn >= ny) return; const v = d[yn * nx + xn] + step; if (v < d[i]) d[i] = v; };
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) { relax(x, y, -1, 0, 1); relax(x, y, 0, -1, 1); relax(x, y, -1, -1, Math.SQRT2); relax(x, y, 1, -1, Math.SQRT2); }
+  for (let y = ny - 1; y >= 0; y--) for (let x = nx - 1; x >= 0; x--) { relax(x, y, 1, 0, 1); relax(x, y, 0, 1, 1); relax(x, y, 1, 1, Math.SQRT2); relax(x, y, -1, 1, Math.SQRT2); }
+  const out = new Uint8Array(nx * ny);
+  for (let i = 0; i < nx * ny; i++) out[i] = Math.min(255, Math.round(d[i] * 16));
+  return out;
+}
+
+// Wandlage je Verbindung: Für jede freie Zelle mit festem Nachbarn in Richtung j wird per Halbierung gesucht, bei welchem
+// Anteil q der Strecke zur Nachbarzellmitte die Wand liegt (inside(x, y) sagt, ob ein Punkt im Körper liegt).
+// Ergebnis: zwei RGBA-Felder (Richtungen 1–4 und 5–8), Byte = q·255; 0 heißt „halbe Zelle“ (kein Innen-Test möglich).
+const CX = [0, 1, 0, -1, 0, 1, -1, -1, 1], CY = [0, 0, 1, 0, -1, 1, 1, -1, -1];
+function wallFractions(nx, ny, m, inside) {
+  const q1 = new Uint8Array(nx * ny * 4), q2 = new Uint8Array(nx * ny * 4);
+  if (!inside) return [q1, q2];
+  for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+    if (m[y * nx + x]) continue;
+    for (let j = 1; j < 9; j++) {
+      const xn = x + CX[j], yn = y + CY[j];
+      if (xn < 0 || yn < 0 || xn >= nx || yn >= ny || !m[yn * nx + xn]) continue;
+      const px = x + 0.5, py = y + 0.5;
+      if (inside(px, py) || !inside(px + CX[j], py + CY[j])) continue;   // Maske und Pfad uneins: halbe Zelle
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 8; k++) { const t = 0.5 * (lo + hi); if (inside(px + t * CX[j], py + t * CY[j])) hi = t; else lo = t; }
+      const q = Math.max(1, Math.min(255, Math.round(0.5 * (lo + hi) * 255)));
+      if (j < 5) q1[(y * nx + x) * 4 + j - 1] = q; else q2[(y * nx + x) * 4 + j - 5] = q;
+    }
+  }
+  return [q1, q2];
 }
 
 // Unterkante jedes Pfads (für Bodenformen) einmal bestimmen
@@ -75,8 +110,15 @@ function physParams() {
   // (Ein langsames Hochfahren des Winds wurde geprüft und verworfen: Der ganze Kanal müsste dann beschleunigt werden,
   // der Einlassdruck stieg dabei auf das 15-fache des Staudrucks und schwang lange nach.)
   // re: Reynoldszahl mit der größten Abmessung; reGrid: was das Gitter davon wirklich rechnet (gleiche Bezugslänge)
-  return { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground: !!(s && s.ground) && !App.draw, re, reGrid: U_LB * D / Math.max(nu, nuMin),
+  // Boden: Gebäude stehen auf haftendem Boden (1); bei Fahrzeugen bewegt sich die Straße mit der Luft, der Boden ist glatt (3)
+  const ground = s && s.ground && !App.draw ? (s.group === 'Fahrzeuge' ? 3 : 1) : 0;
+  // turbulente Grenzschicht ab Re ≈ 2·10⁵ (Umschlag wie beim Zylinder: 2–5·10⁵); dazwischen gleitender Übergang.
+  // nuPhys: wirkliche Zähigkeit der Luft in Gittereinheiten (für das Wandgesetz)
+  const wturb = WALL_LAW ? clamp((Math.log10(re) - Math.log10(2e5)) / (Math.log10(6e5) - Math.log10(2e5)), 0, 1) : 0;
+  const prm = { nu: Math.max(nu, nuMin), uin: U_LB, uref: U_LB, pref: App.pRef || 0, csm: 0.12, ground, re, reGrid: U_LB * D / Math.max(nu, nuMin),
+    wturb: QS.has('turb') ? +QS.get('turb') : wturb, nuPhys: nu, sepTurn: QS.has('sep') ? +QS.get('sep') : undefined, sMax: QS.has('smax') ? +QS.get('smax') : undefined,
     sigmaG: QS.has('sg') ? +QS.get('sg') : undefined, wallFrac: QS.has('sw') ? +QS.get('sw') : undefined };   // sg, sw: nur zum Prüfen der Dämpfung
+  return App.override ? Object.assign(prm, App.override) : prm;   // Prüffälle setzen eigene Werte (WH.setParams)
 }
 
 function setShape(s) {
@@ -85,7 +127,7 @@ function setShape(s) {
   const [nx, ny] = [lbm.nx, lbm.ny];
   const r = rasterShape(s, nx, ny, App.angle);
   App.heightCells = r.height; App.lengthCells = r.length;
-  lbm.setMask(r.m);
+  lbm.setMask(r.m, r.q1, r.q2, r.dist);
   $('#angleRow').style.visibility = s.ground ? 'hidden' : '';
   $('#hudName').textContent = s.name + (s.info ? ' · ' + s.info : '');
   for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === s.id ? 'true' : 'false');
@@ -96,7 +138,8 @@ function setShape(s) {
 function resetForces() { App.force = { n: 0, fx: 0, fy: 0 }; App.sinceReset = 0; }
 
 function restart() {
-  lbm.init(U_LB); App.nuMin = 0; resetForces();
+  const o = App.override || {};
+  lbm.init(o.uin !== undefined ? o.uin : U_LB, o.inletShape || 0); App.nuMin = 0; resetForces();
 }
 
 // Gitter neu anlegen (Start, Gitterwahl, Drehen des Handys); eine gemalte Form wird auf das neue Gitter übertragen
@@ -130,7 +173,8 @@ function updateHud() {
   } else { el.textContent = '–'; ela.textContent = '–'; }
   const p = physParams();
   const reTxt = (v) => v >= 1e6 ? fmt(v / 1e6, 1) + ' Mio.' : v >= 1000 ? fmt(v / 1000) + ' Tsd.' : fmt(v);
-  $('#hudRe').textContent = 'Re ' + reTxt(p.re) + (p.reGrid < p.re * 0.9 ? ' (Gitter: ' + reTxt(p.reGrid) + ')' : '');
+  const turb = WALL_LAW ? (p.wturb >= 1 ? ' · turbulent' : p.wturb > 0 ? ' · Umschlag' : ' · laminar') : '';
+  $('#hudRe').textContent = 'Re ' + reTxt(p.re) + (p.reGrid < p.re * 0.9 ? ' (Gitter: ' + reTxt(p.reGrid) + ')' : '') + turb;
 }
 
 function frame(now) {
@@ -158,7 +202,7 @@ function frame(now) {
     if ((App.frameCount = (App.frameCount || 0) + 1) % 3 === 0) {
       const [fx, fy, umax] = lbm.readForce();
       if (App.frameCount % 12 === 0) App.pRef = lerp(App.pRef || 0, lbm.readColumnRho(2), 0.5);
-      if (!(umax < 0.38)) {
+      if (!(umax < 0.4)) {
         // instabil: mehr Dämpfung, neu starten
         App.nuMin = 1.5 * prm.nu;
         lbm.init(U_LB); resetForces();
@@ -178,7 +222,7 @@ function frame(now) {
 function startDraw() {
   App.draw = true; App.shape = null;
   App.drawn = new Uint8Array(lbm.nx * lbm.ny);
-  lbm.setMask(App.drawn); App.heightCells = 1; App.lengthCells = 100;
+  lbm.setMask(App.drawn, null, null, null, true); App.heightCells = 1; App.lengthCells = 100;
   $('#drawbar').hidden = false; $('#hud').hidden = true; $('#angleRow').style.visibility = 'hidden';
   $('#hudName').textContent = 'Selber gemalt · mit dem Finger ins Bild zeichnen';
   for (const el of document.querySelectorAll('#gallery button')) el.setAttribute('aria-pressed', el.dataset.id === 'malen' ? 'true' : 'false');
@@ -197,7 +241,8 @@ function finishDraw() {
   const m = App.drawn, nx = lbm.nx, ny = lbm.ny; let rows = 0, x0 = nx, x1 = -1;
   for (let y = 0; y < ny; y++) { let any = false; for (let x = 0; x < nx; x++) if (m[y * nx + x]) { any = true; if (x < x0) x0 = x; if (x > x1) x1 = x; } if (any) rows++; }
   App.heightCells = Math.max(rows, 1); App.lengthCells = Math.max(x1 - x0 + 1, 10);
-  lbm.setMask(m); App.draw = false; $('#drawbar').hidden = true; $('#hud').hidden = false;
+  const [q1, q2] = wallFractions(nx, ny, m, null);
+  lbm.setMask(m, q1, q2, wallDistance(nx, ny, m, q1, q2)); App.draw = false; $('#drawbar').hidden = true; $('#hud').hidden = false;
   $('#hudName').textContent = 'Selber gemalt';
   resetForces(); restart();
 }
@@ -226,12 +271,15 @@ function setupUI() {
   const sp = $('#speed'), spv = $('#speedV');
   sp.addEventListener('input', () => { App.speed = +sp.value; spv.textContent = fmt(App.speed) + ' m/s'; updateHud(); });
   const an = $('#angle'), anv = $('#angleV');
+  let angleJob = 0;
   an.addEventListener('input', () => {
     App.angle = +an.value; anv.textContent = fmt(App.angle) + '°';
-    if (App.shape) {
-      const r = rasterShape(App.shape, lbm.nx, lbm.ny, App.angle); App.heightCells = r.height; App.lengthCells = r.length; lbm.setMask(r.m); resetForces();
+    if (!App.shape || angleJob) return;
+    angleJob = requestAnimationFrame(() => {   // je Bild höchstens einmal neu rastern (Wandlage kostet 50–100 ms)
+      angleJob = 0;
+      const r = rasterShape(App.shape, lbm.nx, lbm.ny, App.angle); App.heightCells = r.height; App.lengthCells = r.length; lbm.setMask(r.m, r.q1, r.q2, r.dist); resetForces();
       lbm.sinceInit = Math.min(lbm.sinceInit, Math.round(RAMP_STEPS * 0.5));   // Körper kurz wieder etwas durchlässig: kein Druckstoß
-    }
+    });
   });
   const mb = $('#modeBtn');
   const showMode = () => { mb.textContent = MODES[App.mode][0]; $('#legend').textContent = MODES[App.mode][1]; };
@@ -240,20 +288,14 @@ function setupUI() {
   $('#resetBtn').addEventListener('click', () => { restart(); });
   $('#helpBtn').addEventListener('click', () => { const d = $('#help'); d.showModal(); d.scrollTop = 0; });
   $('#help').addEventListener('click', (e) => { if (e.target === $('#help')) $('#help').close(); });
-  // 3D als Extra: Kann das Gerät WebGPU, öffnet der Knopf die große Fassung mit einem passenden 3D-Modell
-  if (navigator.gpu) {
-    const to3d = { kaefer: 'pkw', sportwagen: 'pkw', wohnmobil: 'pkw', lkw: 'lkw', bus: 'lkw', zug: 'lkw', fluegel: 'fluegel', flugzeug: 'fluegel', papierflieger: 'fluegel', drachen: 'fluegel', moewe: 'fluegel', haus: 'haus', kirche: 'haus', turm: 'schornstein', rakete: 'schornstein', flasche: 'schornstein', zeppelin: 'schornstein' };
-    const b = $('#btn3d'); b.hidden = false;
-    b.addEventListener('click', () => { const id = App.shape && to3d[App.shape.id] || 'kugel'; window.open('https://fbw159.github.io/windkanal/?modell=' + id, '_blank', 'noopener'); });
-  }
   $('#helpClose').addEventListener('click', () => $('#help').close());
-  $('#drawClear').addEventListener('click', () => { App.drawn.fill(0); lbm.setMask(App.drawn); });
+  $('#drawClear').addEventListener('click', () => { App.drawn.fill(0); lbm.setMask(App.drawn, null, null, null, true); });
   $('#drawDone').addEventListener('click', finishDraw);
   for (const b of document.querySelectorAll('#gridSeg button')) b.addEventListener('click', () => { App.grid = b.dataset.v; App.gridChosen = true; for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); rebuildGrid(); });
   // Malen mit Finger oder Maus
   const cv = $('#gl'); let last = null, drawing = false;
-  cv.addEventListener('pointerdown', (e) => { if (!App.draw) return; drawing = true; cv.setPointerCapture(e.pointerId); last = paintAt(e.clientX, e.clientY, null); lbm.setMask(App.drawn); e.preventDefault(); });
-  cv.addEventListener('pointermove', (e) => { if (!App.draw || !drawing) return; last = paintAt(e.clientX, e.clientY, last); lbm.setMask(App.drawn); e.preventDefault(); });
+  cv.addEventListener('pointerdown', (e) => { if (!App.draw) return; drawing = true; cv.setPointerCapture(e.pointerId); last = paintAt(e.clientX, e.clientY, null); lbm.setMask(App.drawn, null, null, null, true); e.preventDefault(); });
+  cv.addEventListener('pointermove', (e) => { if (!App.draw || !drawing) return; last = paintAt(e.clientX, e.clientY, last); lbm.setMask(App.drawn, null, null, null, true); e.preventDefault(); });
   const up = () => { drawing = false; last = null; };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('touchmove', (e) => { if (App.draw) e.preventDefault(); }, { passive: false });
@@ -268,7 +310,18 @@ function setupUI() {
 }
 
 // Prüfschnittstelle (für automatische Tests)
-window.WH = { App, get lbm() { return lbm; }, physParams, setShape: (id) => { const s = SHAPES.find(x => x.id === id); if (s) { setShape(s); restart(); } }, step: (n) => lbm.step(n, physParams()), force: () => lbm.readForce(), SHAPES };
+window.WH = {
+  App, get lbm() { return lbm; }, physParams, SHAPES,
+  setShape: (id) => { const s = SHAPES.find(x => x.id === id); if (s) { setShape(s); restart(); } },
+  step: (n) => lbm.step(n, physParams()), force: () => lbm.readForce(),
+  // Prüffälle: eigenes Gitter, eigene Maske, eigene Werte (nu, ground 0/1/2, inletShape, sigmaG, wallFrac, csm)
+  build: (nx, ny, x0) => { lbm.build(nx, ny, x0 || 0); App.shape = null; App.draw = false; App.drawn = null; lbm.init(U_LB); },
+  setMask: (m, H, L, inside) => { const [q1, q2] = wallFractions(lbm.nx, lbm.ny, m, inside || null); lbm.setMask(m, q1, q2, wallDistance(lbm.nx, lbm.ny, m, q1, q2)); App.heightCells = H || 1; App.lengthCells = L || 1; resetForces(); },
+  // Prüffälle ohne Form rechnen laminar und ohne Wirbelviskosität, wenn nichts anderes gesetzt ist
+  setParams: (o) => { App.override = o ? Object.assign({ wturb: 0, csm: 0 }, o) : null; restart(); },
+  // Feld lesen: Float32Array (rho−1, ux, uy je Zelle, 4 Werte)
+  field: (k = 2) => { const gl = lbm.gl, cur = lbm.sets[lbm.parity]; gl.bindFramebuffer(gl.FRAMEBUFFER, cur.f); gl.readBuffer(gl.COLOR_ATTACHMENT0 + k); const fl = new Float32Array(lbm.nx * lbm.ny * 4); gl.readPixels(0, 0, lbm.nx, lbm.ny, gl.RGBA, gl.FLOAT, fl); return fl; },
+};
 
 function main() {
   try {

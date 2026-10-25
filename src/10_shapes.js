@@ -33,7 +33,7 @@ const SHAPES = [
   { id: 'kreis', name: 'Kreis', group: 'Grundformen', len: 1, path: circ(100, 50, 40) },
   { id: 'quadrat', name: 'Quadrat', group: 'Grundformen', len: 1, path: rect(60, 10, 80, 80) },
   { id: 'dreieck', name: 'Dreieck', group: 'Grundformen', len: 1, path: poly([[45, 50], [150, 8], [150, 92]]) },
-  { id: 'tropfen', name: 'Tropfen', group: 'Grundformen', len: 1, info: 'die windschnittigste Form', path: 'M22 50C22 28 42 16 66 16C110 16 150 40 186 50C150 60 110 84 66 84C42 84 22 72 22 50Z' },
+  { id: 'tropfen', name: 'Tropfen', group: 'Grundformen', len: 1, info: 'die windschnittigste Form', path: 'M22 50C22 28 40 16 64 16C96 16 140 32 186 50C140 68 96 84 64 84C40 84 22 72 22 50Z' },   // Schwanz höchstens 21° steil
   { id: 'platte_quer', name: 'Platte quer', group: 'Grundformen', len: 1, path: rect(96, 10, 8, 80) },
   { id: 'platte_laengs', name: 'Platte längs', group: 'Grundformen', len: 2, path: rect(20, 47, 160, 6) },
   { id: 'schale', name: 'Schale', group: 'Grundformen', len: 1, info: 'offen gegen den Wind, wie ein Fallschirm', path: 'M100 8A42 42 0 0 1 100 92L90 92A34 34 0 0 0 90 8Z' },

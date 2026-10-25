@@ -18,14 +18,14 @@ async def main():
             if i % nparts != part: continue
             await pg.evaluate(f"WH.setShape('{sid}')")
             info = await pg.evaluate("({H: App.heightCells, L: App.lengthCells, re: physParams().reGrid, ground: physParams().ground})")
-            q = 0.5 * 0.01 * (await pg.evaluate("refLength()"))
+            U = await pg.evaluate("U_LB"); q = 0.5 * U * U * (await pg.evaluate("refLength()"))
             hist = []
             for k in range(steps // 250):
                 r = await pg.evaluate("(() => { WH.step(250); return WH.force(); })()")
                 hist.append(r)
             tail = hist[len(hist) // 2:]
             cw = sum(h[0] for h in tail) / len(tail) / q; ca = sum(h[1] for h in tail) / len(tail) / q
-            umax = max(h[2] for h in hist) / 0.1
+            umax = max(h[2] for h in hist) / U
             flag = ' !!' if not (umax < 3.0) else ''
             print(f"{sid:14s} H {info['H']:3d} L {info['L']:3d} Re {info['re']:5.0f} {'Boden' if info['ground'] else '     '}  cW {cw:6.2f} cA {ca:6.2f} umax/U {umax:4.2f}{flag}  Verlauf cW " + ' '.join(f"{h[0]/q:.2f}" for h in hist), flush=True)
             if errs: print('FEHLER', errs); errs.clear()

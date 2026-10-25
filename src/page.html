@@ -24,7 +24,6 @@
   </svg>
   <h1>Taschen-Windkanal</h1>
   <span id="legend" class="legend">Rauchfäden</span>
-  <button id="btn3d" class="iconbtn" type="button" aria-label="In 3D rechnen (große Fassung)" title="Dieses Handy kann WebGPU: die große Fassung mit 3D-Modellen öffnen" hidden>3D</button>
   <button id="helpBtn" class="iconbtn" type="button" aria-label="Hilfe">?</button>
 </header>
 
@@ -65,13 +64,13 @@
 
 <dialog id="help">
   <h2 tabindex="-1" autofocus>Taschen-Windkanal</h2>
-  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig, groß heißt bremsend (Platte quer um 1,5 bis 2). Der Balken zeigt dasselbe als Maß. Schlanke Formen wie der Tropfen kommen hier auf höhere Werte als in Wirklichkeit, weil die Strömung in der Ebene und bei der Reynoldszahl des Gitters noch an der dicksten Stelle ablöst.</p>
-  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
+  <p>Der Wind kommt von links. Du siehst Rauchfäden, Geschwindigkeit, Druck oder Wirbel um die Form. Oben steht der Luftwiderstandsbeiwert c<sub>W</sub>: klein heißt windschnittig (Tropfen), groß heißt bremsend (Platte quer um 1,5 bis 2). Der Balken zeigt dasselbe als Maß.</p>
+  <p>Gerechnet wird eine ebene Strömung (ein Querschnitt) mit der Lattice-Boltzmann-Methode auf der Grafikkarte deines Handys: wirkliche Zähigkeit der Luft, Wirbel kleiner als eine Zelle nach Smagorinsky, Wand an der echten Stelle des Umrisses. Bei hoher Reynoldszahl (große Dinge, schneller Wind: „turbulent“) sorgt ein Wandgesetz dafür, dass die Strömung an Rundungen anliegt wie in Wirklichkeit und erst dort ablöst, wo sich die Oberfläche stark vom Wind wegdreht; kleine Dinge bleiben „laminar“ und lösen früh ab. Die Beiwerte sind auf die Stirnhöhe bezogen (beim Tragflügel auf die Flügeltiefe) und gelten für den Querschnitt, nicht für den ganzen Körper; sie zeigen Unterschiede zwischen Formen gut, sind aber keine Messwerte. Der Einlass liegt ein Stück links außerhalb des Bilds.</p>
   <p>Wind: 1 bis 60 m/s. Bei frei schwebenden Formen lässt sich die Neigung einstellen. „Selber malen“: eigene Form mit dem Finger zeichnen, dann „Fertig“. ↺ startet die Rechnung neu.</p>
   <div class="row"><span>Gitter</span>
     <div id="gridSeg" class="seg" role="group"><button type="button" data-v="grob" aria-pressed="false">grob</button><button type="button" data-v="normal" aria-pressed="true">normal</button><button type="button" data-v="fein" aria-pressed="false">fein</button></div>
   </div>
-  <p class="muted">Die große Fassung mit 3D-Modellen (WebGPU, für den PC; auf neuen Handys über den Knopf „3D“): <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
+  <p class="muted">Die große Fassung mit 3D-Modellen für den PC: <a href="https://fbw159.github.io/windkanal/">fbw159.github.io/windkanal</a></p>
   <button id="helpClose" type="button" class="primary">Schließen</button>
 </dialog>
 
