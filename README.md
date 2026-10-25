@@ -27,6 +27,7 @@ Prüfung (grobes Gitter, ohne Grafikkarte gerechnet, deshalb nur bis 3000 Schrit
 ## Aufbau
 
 - `src/` – Quellen: `00_util.js` (Hilfen), `10_shapes.js` (Formen als SVG-Pfade in einem Kasten 200 × 100), `20_gl.js` (WebGL-Rechenkern und Shader), `30_app.js` (Bedienung), `page.html`, `style.css`, `sw.js` (Vorrat für die Nutzung ohne Netz), `luts.txt` (Farbtabellen).
+- Veröffentlicht wird der Zweig `gh-pages` (GitHub Pages schaltet sich bei diesem Zweignamen von selbst ein). Nach Änderungen also `git push origin main main:gh-pages`.
 - `python3 build.py` baut daraus `index.html` und `sw.js`. Die Seite ist eine einzige Datei ohne Bibliotheken und ohne Server; für die App auf dem Startbildschirm kommen Manifest, Symbole und der Service Worker dazu.
 - `test/` – Prüfskripte mit Playwright (headless, ohne Grafikkarte langsam): `cd.py` (Beiwert einer Form), `ft.py` (Kraftverlauf), `long.py` (lange Läufe), `sweep.py` (alle Formen), `vis.py` (Bilder der vier Darstellungen), `pt.py`/`rho.py` (Druck und Dichte im Kanal), `sheet.py` (Übersicht aller Formen), `icons.py` (App-Symbole).
 - Prüfschnittstelle im Browser: `window.WH` (Formen setzen, Schritte treiben, Kräfte lesen); Startparameter `?form=kaefer&gitter=grob`.
