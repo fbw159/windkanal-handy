@@ -1,6 +1,6 @@
 // Service Worker: die wenigen Dateien der App vorhalten, damit sie auch ohne Netz startet.
 // Beim Laden wird zuerst das Netz gefragt (neue Fassung sofort), ohne Netz kommt der Vorrat.
-const CACHE = 'windkanal-handy-e6ae111fa8';
+const CACHE = 'windkanal-handy-6c058d673d';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-180.png', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

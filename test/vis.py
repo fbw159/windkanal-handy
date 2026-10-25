@@ -17,7 +17,7 @@ async def main():
         await pg.wait_for_timeout(800)
         await pg.evaluate("App.running = false")
         for k in range(steps // 50):
-            await pg.evaluate("(() => { for (let j = 0; j < 5; j++) { WH.step(10); lbm.dye(10, Math.max(6, lbm.ny / 22), 0); } })()")
+            await pg.evaluate("(() => { for (let j = 0; j < 5; j++) { WH.step(10); lbm.dye(10, Math.max(6, Math.round(lbm.ny / 22)), 0); } })()")
         f = await pg.evaluate("WH.force()")
         await pg.evaluate("App.pRef = lbm.readColumnRho(2); const fr = lbm.readForce(); App.force = { n: 10, fx: fr[0] * 10, fy: fr[1] * 10, hist: [] }; updateHud();")
         H = await pg.evaluate("App.heightCells")
@@ -25,7 +25,7 @@ async def main():
         for mode, name in enumerate(['rauch', 'tempo', 'druck', 'wirbel']):
             await pg.evaluate(f"App.mode = {mode}; document.querySelector('#modeBtn').textContent = {['\"Rauch\"','\"Tempo\"','\"Druck\"','\"Wirbel\"'][mode]}; lbm.draw({mode}, physParams(), lbm.canvas.width, lbm.canvas.height)")
             await pg.wait_for_timeout(100)
-            await pg.screenshot(path=f'' + str(__import__('pathlib').Path(__file__).parent) + '/vis_{shape}_{name}.png')
+            await pg.screenshot(path=str(__import__('pathlib').Path(__file__).parent / f'vis_{shape}_{name}.png'))
         print("\n".join(logs)[:800])
         await b.close()
 asyncio.run(main())

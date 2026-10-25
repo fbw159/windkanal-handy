@@ -860,7 +860,7 @@ function frame(now) {
       App.gridChosen = true;
       if (rate < 180) { App.grid = 'grob'; for (const x of document.querySelectorAll('#gridSeg button')) x.setAttribute('aria-pressed', x.dataset.v === 'grob' ? 'true' : 'false'); rebuildGrid(); toast('Das Gitter wurde auf „grob“ gestellt, damit es auf diesem Gerät flüssig läuft.'); }
     }
-    lbm.dye(App.spf, Math.max(6, lbm.ny / 22), 0);
+    lbm.dye(App.spf, Math.max(6, Math.round(lbm.ny / 22)), 0);   // ganzzahliger Abstand: alle Fäden gleich dick
     // Kräfte ab einem halben Durchlauf mitteln; Geschwindigkeit überwachen
     if ((App.frameCount = (App.frameCount || 0) + 1) % 3 === 0) {
       const [fx, fy, umax] = lbm.readForce();
